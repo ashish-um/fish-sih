@@ -21,6 +21,11 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
 
     private var bounds = Rect()
 
+    // For image mode - store the actual image dimensions
+    private var imageWidth = 0
+    private var imageHeight = 0
+    private var isImageMode = false
+
     init {
         initPaints()
     }
@@ -52,10 +57,33 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
         super.draw(canvas)
 
         results.forEach {
-            val left = it.x1 * width
-            val top = it.y1 * height
-            val right = it.x2 * width
-            val bottom = it.y2 * height
+            val left: Float
+            val top: Float
+            val right: Float
+            val bottom: Float
+
+            if (isImageMode && imageWidth > 0 && imageHeight > 0) {
+                // Calculate scaling and positioning for centered image
+                val scaleX = width.toFloat() / imageWidth
+                val scaleY = height.toFloat() / imageHeight
+                val scale = minOf(scaleX, scaleY)
+
+                val scaledWidth = imageWidth * scale
+                val scaledHeight = imageHeight * scale
+                val offsetX = (width - scaledWidth) / 2
+                val offsetY = (height - scaledHeight) / 2
+
+                left = it.x1 * scaledWidth + offsetX
+                top = it.y1 * scaledHeight + offsetY
+                right = it.x2 * scaledWidth + offsetX
+                bottom = it.y2 * scaledHeight + offsetY
+            } else {
+                // Camera mode - use view dimensions
+                left = it.x1 * width
+                top = it.y1 * height
+                right = it.x2 * width
+                bottom = it.y2 * height
+            }
 
             canvas.drawRect(left, top, right, bottom, boxPaint)
             val drawableText = it.clsName
@@ -71,13 +99,24 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
                 textBackgroundPaint
             )
             canvas.drawText(drawableText, left, top + bounds.height(), textPaint)
-
         }
     }
 
     fun setResults(boundingBoxes: List<BoundingBox>) {
         results = boundingBoxes
         invalidate()
+    }
+
+    fun setImageDimensions(width: Int, height: Int) {
+        imageWidth = width
+        imageHeight = height
+        isImageMode = true
+    }
+
+    fun setCameraMode() {
+        isImageMode = false
+        imageWidth = 0
+        imageHeight = 0
     }
 
     companion object {

@@ -19,11 +19,34 @@
         app:layout_constraintTop_toTopOf="parent"
         app:scaleType="fillCenter" />
 
+    <ImageView
+        android:id="@+id/imageView"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        android:scaleType="fitCenter"
+        android:background="@color/black"
+        app:layout_constraintBottom_toTopOf="@+id/detectionPanel"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
     <com.surendramaran.yolov8tflite.OverlayView
         android:id="@+id/overlay"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:translationZ="5dp"
+        app:layout_constraintBottom_toTopOf="@+id/detectionPanel"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <com.surendramaran.yolov8tflite.OverlayView
+        android:id="@+id/overlayImage"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:translationZ="5dp"
+        android:visibility="gone"
         app:layout_constraintBottom_toTopOf="@+id/detectionPanel"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -50,6 +73,16 @@
         android:src="@android:drawable/ic_media_pause"
         app:layout_constraintBottom_toTopOf="@+id/detectionPanel"
         app:layout_constraintEnd_toEndOf="parent" />
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabGallery"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        android:src="@android:drawable/ic_menu_gallery"
+        app:layout_constraintBottom_toTopOf="@+id/fab"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:fabSize="mini" />
 
     <!-- Detection Details Panel - Bottom Half -->
     <androidx.constraintlayout.widget.ConstraintLayout

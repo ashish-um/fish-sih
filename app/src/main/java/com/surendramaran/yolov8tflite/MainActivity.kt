@@ -3,7 +3,9 @@ package com.surendramaran.yolov8tflite
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Matrix
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.View
@@ -36,8 +38,15 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
 
     private lateinit var cameraExecutor: ExecutorService
     private var isCameraRunning = true
+    private var isImageMode = false
 
     private lateinit var detectionAdapter: DetectionAdapter
+
+    private val pickImageLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let { handleImageSelection(it) }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -81,17 +90,89 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
                     buttonView.setBackgroundColor(ContextCompat.getColor(baseContext, R.color.gray))
                 }
             }
+
             fab.setOnClickListener {
-                if (isCameraRunning) {
-                    cameraProvider?.unbindAll()
-                    binding.fab.setImageResource(android.R.drawable.ic_media_play)
+                if (isImageMode) {
+                    // Switch back to camera mode
+                    switchToCameraMode()
                 } else {
-                    bindCameraUseCases()
-                    binding.fab.setImageResource(android.R.drawable.ic_media_pause)
+                    // Pause/Play camera
+                    if (isCameraRunning) {
+                        cameraProvider?.unbindAll()
+                        binding.fab.setImageResource(android.R.drawable.ic_media_play)
+                    } else {
+                        bindCameraUseCases()
+                        binding.fab.setImageResource(android.R.drawable.ic_media_pause)
+                    }
+                    isCameraRunning = !isCameraRunning
                 }
-                isCameraRunning = !isCameraRunning
+            }
+
+            fabGallery.setOnClickListener {
+                pickImageLauncher.launch("image/*")
             }
         }
+    }
+
+    private fun handleImageSelection(uri: Uri) {
+        try {
+            val inputStream = contentResolver.openInputStream(uri)
+            val bitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream?.close()
+
+            if (bitmap != null) {
+                switchToImageMode(bitmap)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error loading image", e)
+        }
+    }
+
+    private fun switchToImageMode(bitmap: Bitmap) {
+        isImageMode = true
+
+        // Stop camera
+        cameraProvider?.unbindAll()
+
+        // Show image views, hide camera views
+        binding.viewFinder.visibility = View.GONE
+        binding.overlay.visibility = View.GONE
+        binding.imageView.visibility = View.VISIBLE
+        binding.overlayImage.visibility = View.VISIBLE
+
+        // Update FAB icon to show back to camera option
+        binding.fab.setImageResource(android.R.drawable.ic_menu_revert)
+
+        // Display the image
+        binding.imageView.setImageBitmap(bitmap)
+
+        // Set image dimensions for overlay
+        binding.overlayImage.setImageDimensions(bitmap.width, bitmap.height)
+
+        // Run detection on the image
+        cameraExecutor.execute {
+            detector?.detect(bitmap)
+        }
+    }
+
+    private fun switchToCameraMode() {
+        isImageMode = false
+
+        // Hide image views, show camera views
+        binding.imageView.visibility = View.GONE
+        binding.overlayImage.visibility = View.GONE
+        binding.viewFinder.visibility = View.VISIBLE
+        binding.overlay.visibility = View.VISIBLE
+
+        // Reset overlay to camera mode
+        binding.overlay.setCameraMode()
+
+        // Update FAB icon
+        binding.fab.setImageResource(android.R.drawable.ic_media_pause)
+
+        // Restart camera
+        isCameraRunning = true
+        bindCameraUseCases()
     }
 
     private fun startCamera() {
@@ -189,7 +270,9 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
     override fun onResume() {
         super.onResume()
         if (allPermissionsGranted()){
-            startCamera()
+            if (!isImageMode) {
+                startCamera()
+            }
         } else {
             requestPermissionLauncher.launch(REQUIRED_PERMISSIONS)
         }
@@ -200,12 +283,22 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
         private const val REQUEST_CODE_PERMISSIONS = 10
         private val REQUIRED_PERMISSIONS = mutableListOf (
             Manifest.permission.CAMERA
-        ).toTypedArray()
+        ).apply {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                add(Manifest.permission.READ_MEDIA_IMAGES)
+            } else {
+                add(Manifest.permission.READ_EXTERNAL_STORAGE)
+            }
+        }.toTypedArray()
     }
 
     override fun onEmptyDetect() {
         runOnUiThread {
-            binding.overlay.clear()
+            if (isImageMode) {
+                binding.overlayImage.clear()
+            } else {
+                binding.overlay.clear()
+            }
             binding.totalCountLabel.text = "Total Detected: 0"
             binding.noDetectionText.visibility = View.VISIBLE
             binding.detectionList.visibility = View.GONE
@@ -216,9 +309,17 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
     override fun onDetect(boundingBoxes: List<BoundingBox>, inferenceTime: Long) {
         runOnUiThread {
             binding.inferenceTime.text = "${inferenceTime}ms"
-            binding.overlay.apply {
-                setResults(boundingBoxes)
-                invalidate()
+
+            if (isImageMode) {
+                binding.overlayImage.apply {
+                    setResults(boundingBoxes)
+                    invalidate()
+                }
+            } else {
+                binding.overlay.apply {
+                    setResults(boundingBoxes)
+                    invalidate()
+                }
             }
 
             // Calculate fish counts

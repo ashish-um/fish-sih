@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.os.Bundle
 import android.util.Log
+import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.AspectRatio
@@ -16,6 +17,7 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.surendramaran.yolov8tflite.Constants.LABELS_PATH
 import com.surendramaran.yolov8tflite.Constants.MODEL_PATH
 import com.surendramaran.yolov8tflite.databinding.ActivityMainBinding
@@ -35,6 +37,8 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
     private lateinit var cameraExecutor: ExecutorService
     private var isCameraRunning = true
 
+    private lateinit var detectionAdapter: DetectionAdapter
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -46,6 +50,8 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
             detector = Detector(baseContext, MODEL_PATH, LABELS_PATH, this)
         }
 
+        setupRecyclerView()
+
         if (allPermissionsGranted()) {
             startCamera()
         } else {
@@ -53,6 +59,14 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
         }
 
         bindListeners()
+    }
+
+    private fun setupRecyclerView() {
+        detectionAdapter = DetectionAdapter()
+        binding.detectionList.apply {
+            layoutManager = LinearLayoutManager(this@MainActivity)
+            adapter = detectionAdapter
+        }
     }
 
     private fun bindListeners() {
@@ -192,6 +206,10 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
     override fun onEmptyDetect() {
         runOnUiThread {
             binding.overlay.clear()
+            binding.totalCountLabel.text = "Total Detected: 0"
+            binding.noDetectionText.visibility = View.VISIBLE
+            binding.detectionList.visibility = View.GONE
+            detectionAdapter.updateDetections(emptyList())
         }
     }
 
@@ -201,6 +219,25 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
             binding.overlay.apply {
                 setResults(boundingBoxes)
                 invalidate()
+            }
+
+            // Calculate fish counts
+            val fishCounts = boundingBoxes
+                .groupBy { it.clsName }
+                .map { (name, boxes) -> DetectionItem(name, boxes.size) }
+                .sortedByDescending { it.count }
+
+            val totalCount = boundingBoxes.size
+
+            binding.totalCountLabel.text = "Total Detected: $totalCount"
+
+            if (fishCounts.isEmpty()) {
+                binding.noDetectionText.visibility = View.VISIBLE
+                binding.detectionList.visibility = View.GONE
+            } else {
+                binding.noDetectionText.visibility = View.GONE
+                binding.detectionList.visibility = View.VISIBLE
+                detectionAdapter.updateDetections(fishCounts)
             }
         }
     }

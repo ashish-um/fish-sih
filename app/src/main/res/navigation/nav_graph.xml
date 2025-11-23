@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/cameraFragment">
+
+    <fragment
+        android:id="@+id/cameraFragment"
+        android:name="com.surendramaran.yolov8tflite.CameraFragment"
+        android:label="Camera" />
+    <fragment
+        android:id="@+id/mapFragment"
+        android:name="com.surendramaran.yolov8tflite.MapFragment"
+        android:label="Map" />
+</navigation>

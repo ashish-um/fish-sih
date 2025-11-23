@@ -15,6 +15,12 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        ndk {
+            // Only include code for modern physical phones
+            // This removes x86 (emulator) and old 32-bit arm chips
+            abiFilters.add("arm64-v8a")
+        }
     }
 
     buildTypes {

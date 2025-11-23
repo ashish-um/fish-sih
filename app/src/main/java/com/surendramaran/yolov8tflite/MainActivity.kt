@@ -33,6 +33,7 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
     private var detector: Detector? = null
 
     private lateinit var cameraExecutor: ExecutorService
+    private var isCameraRunning = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -65,6 +66,16 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
                 } else {
                     buttonView.setBackgroundColor(ContextCompat.getColor(baseContext, R.color.gray))
                 }
+            }
+            fab.setOnClickListener {
+                if (isCameraRunning) {
+                    cameraProvider?.unbindAll()
+                    binding.fab.setImageResource(android.R.drawable.ic_media_play)
+                } else {
+                    bindCameraUseCases()
+                    binding.fab.setImageResource(android.R.drawable.ic_media_pause)
+                }
+                isCameraRunning = !isCameraRunning
             }
         }
     }

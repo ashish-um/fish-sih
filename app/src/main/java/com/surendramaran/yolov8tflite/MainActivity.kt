@@ -3,6 +3,7 @@ package com.surendramaran.yolov8tflite
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.navigation.NavOptions
 import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.setupWithNavController
 import com.surendramaran.yolov8tflite.databinding.ActivityMainBinding
@@ -12,7 +13,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
-
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -21,6 +21,30 @@ class MainActivity : AppCompatActivity() {
             .findFragmentById(R.id.nav_host_fragment) as NavHostFragment
         val navController = navHostFragment.navController
 
+        // 1. Setup default behavior first
         binding.bottomNavigation.setupWithNavController(navController)
+
+        // 2. Override the listener to add Animations
+        binding.bottomNavigation.setOnItemSelectedListener { item ->
+            if (item.itemId != navController.currentDestination?.id) {
+                val builder = NavOptions.Builder()
+                    .setLaunchSingleTop(true)
+                    .setRestoreState(true)
+                    .setEnterAnim(R.anim.fade_in)
+                    .setExitAnim(R.anim.fade_out)
+                    .setPopEnterAnim(R.anim.fade_in)
+                    .setPopExitAnim(R.anim.fade_out)
+
+                // Standard Bottom Navigation behavior: Pop to start destination and save state
+                builder.setPopUpTo(
+                    navController.graph.startDestinationId,
+                    false, // inclusive
+                    true   // saveState
+                )
+
+                navController.navigate(item.itemId, null, builder.build())
+            }
+            true
+        }
     }
 }

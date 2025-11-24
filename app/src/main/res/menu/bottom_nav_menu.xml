@@ -4,6 +4,12 @@
         android:id="@+id/cameraFragment"
         android:icon="@android:drawable/ic_menu_camera"
         android:title="Camera AI" />
+
+    <item
+        android:id="@+id/chatFragment"
+        android:icon="@android:drawable/ic_menu_help"
+        android:title="Ask AI" />
+
     <item
         android:id="@+id/mapFragment"
         android:icon="@android:drawable/ic_dialog_map"

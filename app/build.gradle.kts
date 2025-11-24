@@ -79,4 +79,12 @@ dependencies {
     implementation("androidx.navigation:navigation-fragment-ktx:2.7.7")
     implementation("androidx.navigation:navigation-ui-ktx:2.7.7")
 
+    // 1. MediaPipe for AI Models
+    implementation("com.google.mediapipe:tasks-genai:0.10.24")
+
+    // 2. OkHttp for Downloading Models
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // 3. Coroutines (Likely already there, but ensure it is)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 }

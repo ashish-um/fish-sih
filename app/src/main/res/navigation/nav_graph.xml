@@ -8,6 +8,11 @@
         android:id="@+id/cameraFragment"
         android:name="com.surendramaran.yolov8tflite.CameraFragment"
         android:label="Camera" />
+
+    <fragment
+        android:id="@+id/chatFragment"
+        android:name="com.surendramaran.yolov8tflite.ChatFragment"
+        android:label="AI Chat" />
     <fragment
         android:id="@+id/mapFragment"
         android:name="com.surendramaran.yolov8tflite.MapFragment"

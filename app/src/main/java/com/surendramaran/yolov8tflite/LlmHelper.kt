@@ -2,11 +2,9 @@ package com.surendramaran.yolov8tflite
 
 import android.content.Context
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.withContext
 import java.io.File
 
 class LlmHelper(
@@ -21,6 +19,7 @@ class LlmHelper(
             throw RuntimeException("Model file not found at: $modelPath")
         }
 
+        // Initialize without a listener in options (Fixes 'Unresolved reference')
         val options = LlmInference.LlmInferenceOptions.builder()
             .setModelPath(modelPath)
             .setMaxTokens(1024)
@@ -29,6 +28,7 @@ class LlmHelper(
         llmInference = LlmInference.createFromOptions(context, options)
     }
 
+    // Returns a Flow that emits strings as they are generated
     fun generateResponse(prompt: String): Flow<String> = callbackFlow {
         if (llmInference == null) {
             trySend("Error: AI Engine is not ready.")
@@ -39,16 +39,23 @@ class LlmHelper(
         val formattedPrompt = "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\n$prompt<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
 
         try {
-            // Move the blocking inference call to the IO thread
-            val result = withContext(Dispatchers.IO) {
-                llmInference!!.generateResponse(formattedPrompt)
+            // Use Async API for streaming
+            llmInference!!.generateResponseAsync(formattedPrompt) { partialResult, done ->
+                // Emit the new token/chunk to the Flow
+                if (partialResult != null) {
+                    trySend(partialResult)
+                }
+                // Close the flow when generation is complete
+                if (done) {
+                    close()
+                }
             }
-            trySend(result)
         } catch (e: Exception) {
             trySend("Error: ${e.message}")
+            close()
         }
 
-        close()
+        // Keep the flow alive until closed
         awaitClose { }
     }
 

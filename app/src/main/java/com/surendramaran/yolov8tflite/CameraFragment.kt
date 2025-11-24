@@ -1,6 +1,7 @@
 package com.surendramaran.yolov8tflite
 
 import android.Manifest
+import android.app.Activity
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -11,6 +12,7 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.AspectRatio
 import androidx.camera.core.Camera
@@ -18,13 +20,14 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.surendramaran.yolov8tflite.Constants.LABELS_PATH
 import com.surendramaran.yolov8tflite.Constants.MODEL_PATH
 import com.surendramaran.yolov8tflite.databinding.FragmentCameraBinding
+import com.yalantis.ucrop.UCrop
+import java.io.File
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -46,10 +49,21 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
 
     private lateinit var detectionAdapter: DetectionAdapter
 
-    // --- GALLERY LAUNCHER ---
+    // --- 1. GALLERY LAUNCHER (Sends to Crop) ---
     private val galleryLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let {
-            processGalleryImage(it)
+            startCrop(it)
+        }
+    }
+
+    // --- 2. CROP LAUNCHER (Receives Cropped Image) ---
+    private val cropImage = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+            val resultUri = UCrop.getOutput(result.data!!)
+            resultUri?.let { processGalleryImage(it) }
+        } else if (result.resultCode == UCrop.RESULT_ERROR) {
+            val error = UCrop.getError(result.data!!)
+            Toast.makeText(context, "Crop error: ${error?.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -126,6 +140,25 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                     }
                 }
             }
+        }
+    }
+
+    // --- HELPER: START CROP ---
+    private fun startCrop(sourceUri: Uri) {
+        try {
+            // Create unique temp file
+            val destFile = File(requireContext().cacheDir, "cropped_cam_${System.currentTimeMillis()}.jpg")
+            val destUri = Uri.fromFile(destFile)
+
+            val options = UCrop.Options()
+            options.setToolbarTitle("Crop for AI")
+            options.setFreeStyleCropEnabled(true)
+
+            val uCrop = UCrop.of(sourceUri, destUri).withOptions(options)
+            cropImage.launch(uCrop.getIntent(requireContext()))
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error starting crop", e)
         }
     }
 

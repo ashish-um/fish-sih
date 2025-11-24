@@ -29,7 +29,7 @@
             android:layout_marginBottom="20dp"
             app:cardCornerRadius="16dp"
             app:cardElevation="0dp"
-            app:strokeColor="#BDBDBD"
+            app:strokeColor="#E0E0E0"
             app:strokeWidth="1dp"
             android:backgroundTint="@android:color/white">
 
@@ -60,10 +60,9 @@
                         android:id="@+id/imgEyes"
                         android:layout_width="200dp"
                         android:layout_height="200dp"
-                        android:src="@android:drawable/ic_menu_camera"
+                        android:src="@drawable/ic_placeholder"
                         android:scaleType="fitCenter"
-                        android:padding="10dp"/>
-                </androidx.cardview.widget.CardView>
+                        android:padding="60dp"/> </androidx.cardview.widget.CardView>
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -116,7 +115,7 @@
             android:layout_marginBottom="24dp"
             app:cardCornerRadius="16dp"
             app:cardElevation="0dp"
-            app:strokeColor="#BDBDBD"
+            app:strokeColor="#E0E0E0"
             app:strokeWidth="1dp"
             android:backgroundTint="@android:color/white">
 
@@ -147,10 +146,9 @@
                         android:id="@+id/imgGills"
                         android:layout_width="200dp"
                         android:layout_height="200dp"
-                        android:src="@android:drawable/ic_menu_camera"
+                        android:src="@drawable/ic_placeholder"
                         android:scaleType="fitCenter"
-                        android:padding="10dp"/>
-                </androidx.cardview.widget.CardView>
+                        android:padding="60dp"/> </androidx.cardview.widget.CardView>
 
                 <LinearLayout
                     android:layout_width="match_parent"

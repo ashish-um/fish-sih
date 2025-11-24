@@ -87,4 +87,7 @@ dependencies {
 
     // 3. Coroutines (Likely already there, but ensure it is)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+
+    // Add this line for Image Cropping
+    implementation("com.github.yalantis:ucrop:2.2.8")
 }

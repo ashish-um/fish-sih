@@ -6,6 +6,11 @@
         android:title="Camera AI" />
 
     <item
+        android:id="@+id/freshnessFragment"
+        android:icon="@android:drawable/ic_menu_view"
+        android:title="Freshness" />
+
+    <item
         android:id="@+id/chatFragment"
         android:icon="@android:drawable/ic_menu_help"
         android:title="Ask AI" />

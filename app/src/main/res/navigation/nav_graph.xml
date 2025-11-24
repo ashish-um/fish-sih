@@ -13,8 +13,14 @@
         android:id="@+id/chatFragment"
         android:name="com.surendramaran.yolov8tflite.ChatFragment"
         android:label="AI Chat" />
+
     <fragment
         android:id="@+id/mapFragment"
         android:name="com.surendramaran.yolov8tflite.MapFragment"
         android:label="Map" />
+
+    <fragment
+        android:id="@+id/freshnessFragment"
+        android:name="com.surendramaran.yolov8tflite.FreshnessFragment"
+        android:label="Check Freshness" />
 </navigation>

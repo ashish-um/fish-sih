@@ -24,22 +24,22 @@ class MainActivity : AppCompatActivity() {
         // 1. Setup default behavior first
         binding.bottomNavigation.setupWithNavController(navController)
 
-        // 2. Override the listener to add Animations
+        // 2. Override the listener to add Animations AND Reset State on Tab Switch
         binding.bottomNavigation.setOnItemSelectedListener { item ->
             if (item.itemId != navController.currentDestination?.id) {
                 val builder = NavOptions.Builder()
                     .setLaunchSingleTop(true)
-                    .setRestoreState(true)
+                    .setRestoreState(false) // UPDATED: Changed to false (Always reset the tab)
                     .setEnterAnim(R.anim.fade_in)
                     .setExitAnim(R.anim.fade_out)
                     .setPopEnterAnim(R.anim.fade_in)
                     .setPopExitAnim(R.anim.fade_out)
 
-                // Standard Bottom Navigation behavior: Pop to start destination and save state
+                // Standard Bottom Navigation behavior: Pop to start destination
                 builder.setPopUpTo(
                     navController.graph.startDestinationId,
                     false, // inclusive
-                    true   // saveState
+                    false   // saveState -> UPDATED: Changed to false (Don't save stack)
                 )
 
                 navController.navigate(item.itemId, null, builder.build())

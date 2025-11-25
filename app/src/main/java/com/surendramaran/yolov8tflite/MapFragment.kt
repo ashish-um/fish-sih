@@ -2,6 +2,7 @@ package com.surendramaran.yolov8tflite
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.drawable.BitmapDrawable
@@ -115,6 +116,24 @@ class MapFragment : Fragment() {
                 marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
                 marker.title = "Catch: ${item.fishCount}"
                 marker.subDescription = "Date: ${Date(item.timestamp)}"
+
+                // UPDATED: Load image if available to show in the info window
+                if (item.imagePath.isNotEmpty()) {
+                    try {
+                        val imgFile = File(item.imagePath)
+                        if (imgFile.exists()) {
+                            // Decode file to bitmap
+                            val bitmap = BitmapFactory.decodeFile(imgFile.absolutePath)
+                            if (bitmap != null) {
+                                // Set the image property of the marker which osmdroid uses in the info window
+                                marker.image = BitmapDrawable(resources, bitmap)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e("MapFragment", "Error loading image for marker", e)
+                    }
+                }
+
                 map.overlays.add(marker)
             }
         }

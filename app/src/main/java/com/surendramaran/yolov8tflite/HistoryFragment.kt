@@ -18,6 +18,7 @@ class HistoryFragment : Fragment() {
     private lateinit var dbHelper: DatabaseHelper
     private lateinit var recyclerView: RecyclerView
     private lateinit var emptyText: TextView
+    private var isViewJustCreated = false
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -38,12 +39,21 @@ class HistoryFragment : Fragment() {
 
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
 
-        // Load history only if adapter isn't already set
-        if (recyclerView.adapter == null) {
+        // FIXED: Load history immediately here to avoid deadlock.
+        // postponing requires startPostponedEnterTransition to be called,
+        // which happens inside loadHistory -> waitForTransition.
+        loadHistory()
+        isViewJustCreated = true
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Reload history only if we didn't just load it in onViewCreated.
+        // This ensures the list is fresh when returning to this tab.
+        if (!isViewJustCreated) {
             loadHistory()
-        } else {
-            waitForTransition()
         }
+        isViewJustCreated = false
     }
 
     private fun loadHistory() {
@@ -52,21 +62,21 @@ class HistoryFragment : Fragment() {
         if (data.isEmpty()) {
             emptyText.visibility = View.VISIBLE
             recyclerView.visibility = View.GONE
+            // Important: Must start transition even if empty
             startPostponedEnterTransition()
         } else {
             emptyText.visibility = View.GONE
             recyclerView.visibility = View.VISIBLE
 
             val adapter = HistoryAdapter(data) { item, imageView ->
-                // UPDATED: Added "lat" and "lng" to the bundle
                 val bundle = bundleOf(
                     "imagePath" to item.imagePath,
                     "timestamp" to item.timestamp,
                     "fishCount" to item.fishCount,
                     "details" to item.details,
                     "placeName" to item.placeName,
-                    "lat" to item.lat,   // <--- THIS WAS MISSING
-                    "lng" to item.lng    // <--- THIS WAS MISSING
+                    "lat" to item.lat,
+                    "lng" to item.lng
                 )
 
                 val extras = FragmentNavigatorExtras(
@@ -87,6 +97,7 @@ class HistoryFragment : Fragment() {
     }
 
     private fun waitForTransition() {
+        // Wait for RecyclerView to lay out items before starting the transition
         recyclerView.doOnPreDraw {
             startPostponedEnterTransition()
         }

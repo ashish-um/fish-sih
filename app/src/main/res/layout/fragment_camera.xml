@@ -63,6 +63,15 @@
         app:layout_constraintEnd_toEndOf="parent">
 
         <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/btn_save"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="16dp"
+            android:backgroundTint="@color/white"
+            android:src="@android:drawable/ic_menu_save"
+            android:visibility="gone" />
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/btn_gallery"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -153,7 +162,7 @@
                 android:textColor="@color/white"
                 android:textOff="@string/gpu"
                 android:textOn="@string/gpu" />
-
         </LinearLayout>
     </androidx.constraintlayout.widget.ConstraintLayout>
+
 </androidx.constraintlayout.widget.ConstraintLayout>

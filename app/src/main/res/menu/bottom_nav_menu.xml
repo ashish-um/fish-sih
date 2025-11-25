@@ -11,6 +11,11 @@
         android:title="Freshness" />
 
     <item
+        android:id="@+id/historyFragment"
+        android:icon="@android:drawable/ic_menu_recent_history"
+        android:title="History" />
+
+    <item
         android:id="@+id/chatFragment"
         android:icon="@android:drawable/ic_menu_help"
         android:title="Ask AI" />

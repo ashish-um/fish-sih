@@ -23,4 +23,37 @@
         android:id="@+id/freshnessFragment"
         android:name="com.surendramaran.yolov8tflite.FreshnessFragment"
         android:label="Check Freshness" />
+
+    <fragment
+        android:id="@+id/historyFragment"
+        android:name="com.surendramaran.yolov8tflite.HistoryFragment"
+        android:label="History">
+
+        <action
+            android:id="@+id/action_history_to_detail"
+            app:destination="@id/historyDetailFragment"
+            app:enterAnim="@anim/fade_in"
+            app:exitAnim="@anim/fade_out"
+            app:popEnterAnim="@anim/fade_in"
+            app:popExitAnim="@anim/fade_out" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/historyDetailFragment"
+        android:name="com.surendramaran.yolov8tflite.HistoryDetailFragment"
+        android:label="Detection Detail">
+        <argument
+            android:name="imagePath"
+            app:argType="string" />
+        <argument
+            android:name="timestamp"
+            app:argType="long" />
+        <argument
+            android:name="fishCount"
+            app:argType="string" />
+        <argument
+            android:name="details"
+            app:argType="string" />
+    </fragment>
+
 </navigation>

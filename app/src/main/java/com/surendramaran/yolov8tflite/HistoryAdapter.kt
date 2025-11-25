@@ -37,10 +37,9 @@ class HistoryAdapter(
         val sdf = SimpleDateFormat("MMM dd, yyyy • hh:mm a", Locale.getDefault())
         holder.date.text = sdf.format(Date(item.timestamp))
 
-        // UPDATED: Show Place Name (e.g. "Kanpur, Uttar Pradesh")
-        holder.location.text = item.placeName
-        // Only show if it has valid content (not default failure msg)
-        holder.location.visibility = if (item.placeName.isNotEmpty() && item.placeName != "Location not available") View.VISIBLE else View.GONE
+        // UPDATED: Show ONLY Latitude and Longitude
+        holder.location.text = String.format("Lat: %.4f, Lng: %.4f", item.lat, item.lng)
+        holder.location.visibility = View.VISIBLE
 
         holder.counts.text = item.fishCount
         holder.details.text = item.details

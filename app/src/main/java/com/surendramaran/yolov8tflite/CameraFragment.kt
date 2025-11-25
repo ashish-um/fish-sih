@@ -11,7 +11,7 @@ import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Rect
-import android.location.Geocoder // Import Geocoder
+import android.location.Geocoder
 import android.location.LocationManager
 import android.net.Uri
 import android.os.Bundle
@@ -125,8 +125,16 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                 )
             }
 
-            btnSave.setOnClickListener {
+            // NEW: Dialog Button Listeners
+            btnDialogSave.setOnClickListener {
                 saveCurrentDetection()
+                // Hide dialog after saving
+                saveDialog.visibility = View.GONE
+            }
+
+            btnDialogDiscard.setOnClickListener {
+                // Discard capture and restart camera
+                restartCameraPreview()
             }
 
             btnGallery.setOnClickListener {
@@ -148,7 +156,8 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                             binding.viewFinder.visibility = View.INVISIBLE
                             binding.overlay.setImageDimensions(bmp.width, bmp.height)
                         }
-                        binding.btnSave.visibility = View.VISIBLE
+                        // UPDATED: Show Dialog instead of Save Button
+                        binding.saveDialog.visibility = View.VISIBLE
                     } else {
                         restartCameraPreview()
                     }
@@ -185,7 +194,9 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             binding.imagePreview.visibility = View.VISIBLE
             binding.imagePreview.setImageBitmap(bitmap)
             binding.overlay.setImageDimensions(bitmap.width, bitmap.height)
-            binding.btnSave.visibility = View.VISIBLE
+
+            // UPDATED: Show Dialog
+            binding.saveDialog.visibility = View.VISIBLE
 
             cameraExecutor.execute { detector?.detect(bitmap) }
         } catch (e: Exception) {
@@ -196,7 +207,9 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
     private fun restartCameraPreview() {
         binding.imagePreview.visibility = View.GONE
         binding.viewFinder.visibility = View.VISIBLE
-        binding.btnSave.visibility = View.GONE
+        // UPDATED: Hide Dialog
+        binding.saveDialog.visibility = View.GONE
+
         binding.overlay.setCameraMode()
         binding.fab.setImageResource(android.R.drawable.ic_media_pause)
         startCamera()
@@ -265,7 +278,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         }
     }
 
-    // --- UPDATED SAVE FUNCTION ---
     private fun saveCurrentDetection() {
         val bitmapToSave = lastBitmap ?: return
         val resultsToSave = lastResults
@@ -288,11 +300,10 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                     // 2. Reverse Geocode to get Name
                     try {
                         val geocoder = Geocoder(requireContext(), Locale.getDefault())
-                        @Suppress("DEPRECATION") // Use sync method for simplicity in this context
+                        @Suppress("DEPRECATION")
                         val addresses = geocoder.getFromLocation(currentLat, currentLng, 1)
                         if (!addresses.isNullOrEmpty()) {
                             val address = addresses[0]
-                            // Construct a readable string (e.g., "Kanpur, Uttar Pradesh")
                             val locality = address.locality ?: address.subAdminArea ?: ""
                             val state = address.adminArea ?: ""
                             placeName = if (locality.isNotEmpty()) "$locality, $state" else state
@@ -366,7 +377,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                 details = details,
                 lat = currentLat,
                 lng = currentLng,
-                placeName = placeName // Pass the name
+                placeName = placeName
             )
 
             val msg = if (currentLat != 0.0) "Saved at $placeName!" else "Saved (No GPS)"

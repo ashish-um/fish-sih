@@ -102,12 +102,6 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent" />
 
-                    <View
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:clickable="false"
-                        android:focusable="false"
-                        android:background="#10000000"/>
                 </androidx.cardview.widget.CardView>
 
                 <View

@@ -12,14 +12,12 @@ import android.transition.ChangeTransform
 import android.transition.Fade
 import android.transition.TransitionSet
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
-import androidx.cardview.widget.CardView
 import androidx.fragment.app.Fragment
-import androidx.navigation.fragment.findNavController
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
@@ -56,7 +54,6 @@ class HistoryDetailFragment : Fragment() {
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        // Initialize OSMDroid Configuration
         val context = requireContext()
         Configuration.getInstance().load(context, PreferenceManager.getDefaultSharedPreferences(context))
         Configuration.getInstance().userAgentValue = context.packageName
@@ -71,7 +68,6 @@ class HistoryDetailFragment : Fragment() {
         val timestamp = arguments?.getLong("timestamp") ?: 0L
         val fishCount = arguments?.getString("fishCount")
         val details = arguments?.getString("details")
-        val placeName = arguments?.getString("placeName")
         val lat = arguments?.getDouble("lat") ?: 0.0
         val lng = arguments?.getDouble("lng") ?: 0.0
 
@@ -81,7 +77,6 @@ class HistoryDetailFragment : Fragment() {
         val countsView: TextView = view.findViewById(R.id.detailCounts)
         val rawView: TextView = view.findViewById(R.id.detailRaw)
 
-        // Mini Map Elements
         val mapCard: androidx.cardview.widget.CardView = view.findViewById(R.id.mapCard)
         miniMap = view.findViewById(R.id.miniMap)
 
@@ -90,29 +85,16 @@ class HistoryDetailFragment : Fragment() {
         val sdf = SimpleDateFormat("MMMM dd, yyyy • hh:mm a", Locale.getDefault())
         dateView.text = sdf.format(Date(timestamp))
 
-        // --- UPDATED LOGIC START ---
-
-        // 1. Always make the Location TextView VISIBLE to prove UI update
         locationView.visibility = View.VISIBLE
 
         if (lat != 0.0 && lng != 0.0) {
-            // Valid Location: Show Name + Map
-            val finalText = if (!placeName.isNullOrEmpty() && placeName != "Location not available") {
-                placeName
-            } else {
-                "Lat: $lat, Lng: $lng"
-            }
-            locationView.text = finalText
-
+            locationView.text = String.format("Lat: %.4f, Lng: %.4f", lat, lng)
             mapCard.visibility = View.VISIBLE
             setupMiniMap(lat, lng)
         } else {
-            // No Location: Show explicit message (This proves the layout works!)
             locationView.text = "Location data not available"
             mapCard.visibility = View.GONE
         }
-
-        // --- UPDATED LOGIC END ---
 
         countsView.text = fishCount
         rawView.text = details
@@ -129,17 +111,31 @@ class HistoryDetailFragment : Fragment() {
     private fun setupMiniMap(lat: Double, lng: Double) {
         miniMap?.apply {
             setTileSource(TileSourceFactory.MAPNIK)
-            setMultiTouchControls(false) // Disable interaction for "mini" feel
+            setMultiTouchControls(true)
             controller.setZoom(6.0)
             val point = GeoPoint(lat, lng)
             controller.setCenter(point)
 
-            // Add Marker
             val marker = Marker(this)
             marker.position = point
             marker.icon = createSmallDot(Color.RED)
             marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
             overlays.add(marker)
+
+            // UPDATED: Handle scrolling conflict
+            setOnTouchListener { v, event ->
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
+                        // Disallow ScrollView to intercept touch events.
+                        v.parent.requestDisallowInterceptTouchEvent(true)
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        // Allow ScrollView to intercept touch events.
+                        v.parent.requestDisallowInterceptTouchEvent(false)
+                    }
+                }
+                false // Allow the map to process the click/drag
+            }
         }
     }
 

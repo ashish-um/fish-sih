@@ -26,13 +26,14 @@ import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 import java.io.File
+import java.util.Date
 
 class MapFragment : Fragment() {
 
     private lateinit var map: MapView
     private var locationOverlay: MyLocationNewOverlay? = null
+    private lateinit var dbHelper: DatabaseHelper
 
-    // --- PERMISSION LAUNCHER ---
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -52,7 +53,6 @@ class MapFragment : Fragment() {
         Configuration.getInstance().load(context, PreferenceManager.getDefaultSharedPreferences(context))
         Configuration.getInstance().userAgentValue = context.packageName
 
-        // Configure App-Specific Storage (No Permission Needed for Map Cache)
         val basePath = File(context.getExternalFilesDir(null), "osmdroid")
         Configuration.getInstance().osmdroidBasePath = basePath
         val tileCache = File(basePath, "tiles")
@@ -64,20 +64,18 @@ class MapFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        dbHelper = DatabaseHelper(requireContext())
         map = view.findViewById(R.id.map)
 
-        // 1. SETUP MAP
         map.setTileSource(TileSourceFactory.MAPNIK)
         map.setMultiTouchControls(true)
         map.setUseDataConnection(true)
         map.overlayManager.tilesOverlay.isEnabled = true
 
-        // 2. Center Map on India (Initial)
         val indiaCenter = GeoPoint(20.5937, 78.9629)
         map.controller.setZoom(5.5)
         map.controller.setCenter(indiaCenter)
 
-        // 3. CHECK PERMISSION & ENABLE GPS
         if (checkLocationPermission()) {
             setupLocationOverlay()
         } else {
@@ -89,10 +87,11 @@ class MapFragment : Fragment() {
             )
         }
 
-        // 4. Load ISRO Layers
         loadOfflineLayers()
 
-        // Center Button Logic
+        // NEW: Load saved detections onto the map
+        loadSavedDetections()
+
         view.findViewById<View>(R.id.btn_center_map)?.setOnClickListener {
             val myLoc = locationOverlay?.myLocation
             if (myLoc != null) {
@@ -104,6 +103,24 @@ class MapFragment : Fragment() {
         }
     }
 
+    private fun loadSavedDetections() {
+        val detections = dbHelper.getAllDetections()
+        val detectionIcon = createSmallDot(Color.RED, 50) // Red dots for catches
+
+        detections.forEach { item ->
+            if (item.lat != 0.0 && item.lng != 0.0) {
+                val marker = Marker(map)
+                marker.position = GeoPoint(item.lat, item.lng)
+                marker.icon = detectionIcon
+                marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                marker.title = "Catch: ${item.fishCount}"
+                marker.subDescription = "Date: ${Date(item.timestamp)}"
+                map.overlays.add(marker)
+            }
+        }
+        map.invalidate()
+    }
+
     private fun checkLocationPermission(): Boolean {
         return ContextCompat.checkSelfPermission(
             requireContext(),
@@ -111,29 +128,26 @@ class MapFragment : Fragment() {
         ) == PackageManager.PERMISSION_GRANTED
     }
 
-    // Creates a sharp, "Google Maps" style Navigation Arrow
     private fun createBlueArrow(): android.graphics.Bitmap {
-        val width = 60  // Width of the arrow
-        val height = 60 // Height of the arrow
+        val width = 60
+        val height = 60
         val bitmap = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
         val canvas = android.graphics.Canvas(bitmap)
 
         val paint = Paint()
-        paint.color = Color.parseColor("#2979FF") // Bright Blue
+        paint.color = Color.parseColor("#2979FF")
         paint.style = Paint.Style.FILL
         paint.isAntiAlias = true
 
-        // Draw a "Paper Airplane" / Navigation Arrow shape
         val path = android.graphics.Path()
-        path.moveTo(width / 2f, 0f)                 // Top Tip
-        path.lineTo(width.toFloat(), height.toFloat()) // Bottom Right
-        path.lineTo(width / 2f, height * 0.75f)     // Inward Notch (Bottom Center)
-        path.lineTo(0f, height.toFloat())           // Bottom Left
+        path.moveTo(width / 2f, 0f)
+        path.lineTo(width.toFloat(), height.toFloat())
+        path.lineTo(width / 2f, height * 0.75f)
+        path.lineTo(0f, height.toFloat())
         path.close()
 
         canvas.drawPath(path, paint)
 
-        // Optional: Add a white outline to make it pop against the ocean
         val strokePaint = Paint()
         strokePaint.color = Color.WHITE
         strokePaint.style = Paint.Style.STROKE
@@ -144,6 +158,19 @@ class MapFragment : Fragment() {
         return bitmap
     }
 
+    private fun createSmallDot(color: Int, size: Int = 20): BitmapDrawable {
+        val bitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bitmap)
+        val paint = Paint()
+        paint.color = Color.WHITE
+        paint.style = Paint.Style.FILL
+        paint.isAntiAlias = true
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+        paint.color = color
+        canvas.drawCircle(size / 2f, size / 2f, (size / 2f) - 6, paint)
+        return BitmapDrawable(resources, bitmap)
+    }
+
     private fun setupLocationOverlay() {
         val provider = GpsMyLocationProvider(requireContext())
         provider.addLocationSource(android.location.LocationManager.GPS_PROVIDER)
@@ -151,11 +178,8 @@ class MapFragment : Fragment() {
 
         locationOverlay = MyLocationNewOverlay(provider, map)
 
-        // --- CUSTOM BLUE ARROW ---
         val blueArrow = createBlueArrow()
-        // Set the icon for when you are moving (Direction)
         locationOverlay?.setDirectionIcon(blueArrow)
-        // Set the icon for when you are standing still (Person)
         locationOverlay?.setPersonIcon(blueArrow)
 
         locationOverlay?.enableMyLocation()
@@ -168,7 +192,6 @@ class MapFragment : Fragment() {
 
     private fun loadOfflineLayers() {
         try {
-            // Make sure these files exist in src/main/assets/
             parseGeoJson("indiaeez.json", Color.RED, 3f, isPolygon = true)
             parseGeoJson("sector_new.json", Color.parseColor("#FF5722"), 2f, isPolygon = true, fillColor = 0x11FF5722)
             parseGeoJson("pfz.json", Color.YELLOW, 6f, isPolygon = false)
@@ -178,7 +201,6 @@ class MapFragment : Fragment() {
         }
     }
 
-    // --- GEOJSON PARSER (Robust Version) ---
     private fun parseGeoJson(filename: String, color: Int, width: Float, isPolygon: Boolean, fillColor: Int? = null) {
         try {
             val jsonString = requireContext().assets.open(filename).bufferedReader().use { it.readText() }
@@ -266,24 +288,12 @@ class MapFragment : Fragment() {
         }
     }
 
-    private fun createSmallDot(color: Int): BitmapDrawable {
-        val size = 24
-        val bitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
-        val canvas = android.graphics.Canvas(bitmap)
-        val paint = Paint()
-        paint.color = Color.WHITE
-        paint.style = Paint.Style.FILL
-        paint.isAntiAlias = true
-        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
-        paint.color = color
-        canvas.drawCircle(size / 2f, size / 2f, (size / 2f) - 4, paint)
-        return BitmapDrawable(resources, bitmap)
-    }
-
     override fun onResume() {
         super.onResume()
         map.onResume()
         locationOverlay?.enableMyLocation()
+        // Reload points so new detections appear immediately
+        loadSavedDetections()
     }
 
     override fun onPause() {

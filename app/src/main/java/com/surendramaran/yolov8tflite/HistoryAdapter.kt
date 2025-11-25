@@ -14,12 +14,13 @@ import java.util.Locale
 
 class HistoryAdapter(
     private val historyList: List<HistoryItem>,
-    private val onItemClick: (HistoryItem, View) -> Unit // Update to accept View
+    private val onItemClick: (HistoryItem, View) -> Unit
 ) : RecyclerView.Adapter<HistoryAdapter.ViewHolder>() {
 
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val image: ImageView = view.findViewById(R.id.historyImage)
         val date: TextView = view.findViewById(R.id.historyDate)
+        val location: TextView = view.findViewById(R.id.historyLocation)
         val counts: TextView = view.findViewById(R.id.historyCounts)
         val details: TextView = view.findViewById(R.id.historyDetails)
     }
@@ -35,6 +36,12 @@ class HistoryAdapter(
 
         val sdf = SimpleDateFormat("MMM dd, yyyy • hh:mm a", Locale.getDefault())
         holder.date.text = sdf.format(Date(item.timestamp))
+
+        // UPDATED: Show Place Name (e.g. "Kanpur, Uttar Pradesh")
+        holder.location.text = item.placeName
+        // Only show if it has valid content (not default failure msg)
+        holder.location.visibility = if (item.placeName.isNotEmpty() && item.placeName != "Location not available") View.VISIBLE else View.GONE
+
         holder.counts.text = item.fishCount
         holder.details.text = item.details
 
@@ -46,10 +53,8 @@ class HistoryAdapter(
             holder.image.setImageResource(android.R.drawable.ic_menu_gallery)
         }
 
-        // REQUIRED FOR ANIMATION: Unique Transition Name
         holder.image.transitionName = item.imagePath
 
-        // Pass the ImageView to the click listener
         holder.itemView.setOnClickListener {
             onItemClick(item, holder.image)
         }

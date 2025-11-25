@@ -42,10 +42,21 @@
                     tools:text="Nov 24, 2024 • 10:30 AM" />
 
                 <TextView
+                    android:id="@+id/detailLocation"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:drawablePadding="4dp"
+                    android:textColor="#1976D2"
+                    android:textSize="14sp"
+                    android:textStyle="italic"
+                    tools:text="Kanpur, Uttar Pradesh" />
+
+                <TextView
                     android:id="@+id/detailCounts"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginTop="16dp"
                     android:text="No Fish Detected"
                     android:textColor="@color/black"
                     android:textSize="22sp"
@@ -77,6 +88,28 @@
                     android:textSize="14sp"
                     tools:text="Total: 3\nConfidence: [0.99, 0.88]\nModel: YOLOv8" />
 
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/mapCard"
+                    android:layout_width="match_parent"
+                    android:layout_height="200dp"
+                    android:layout_marginTop="24dp"
+                    app:cardCornerRadius="12dp"
+                    app:cardElevation="2dp"
+                    android:visibility="gone">
+
+                    <org.osmdroid.views.MapView
+                        android:id="@+id/miniMap"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent" />
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:clickable="false"
+                        android:focusable="false"
+                        android:background="#10000000"/>
+                </androidx.cardview.widget.CardView>
+
                 <View
                     android:layout_width="match_parent"
                     android:layout_height="100dp" />
@@ -84,19 +117,5 @@
             </LinearLayout>
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
-
-    <ImageButton
-        android:id="@+id/btnBack"
-        android:layout_width="50dp"
-        android:layout_height="50dp"
-        android:layout_margin="16dp"
-        android:background="@drawable/bg_chat_bubble"
-        android:backgroundTint="#99000000"
-        android:contentDescription="Close"
-        android:padding="14dp"
-        android:src="@drawable/ic_close"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:tint="@color/white" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

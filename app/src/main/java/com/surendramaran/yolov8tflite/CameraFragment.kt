@@ -2,6 +2,7 @@ package com.surendramaran.yolov8tflite
 
 import android.Manifest
 import android.app.Activity
+import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -10,6 +11,8 @@ import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Rect
+import android.location.Geocoder // Import Geocoder
+import android.location.LocationManager
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -33,6 +36,7 @@ import com.surendramaran.yolov8tflite.databinding.FragmentCameraBinding
 import com.yalantis.ucrop.UCrop
 import java.io.File
 import java.io.FileOutputStream
+import java.util.Locale
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -54,19 +58,14 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
 
     private lateinit var detectionAdapter: DetectionAdapter
 
-    // --- NEW: Database and Capture Variables ---
     private lateinit var dbHelper: DatabaseHelper
     private var lastBitmap: Bitmap? = null
     private var lastResults: List<BoundingBox> = emptyList()
 
-    // --- 1. GALLERY LAUNCHER (Sends to Crop) ---
     private val galleryLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        uri?.let {
-            startCrop(it)
-        }
+        uri?.let { startCrop(it) }
     }
 
-    // --- 2. CROP LAUNCHER (Receives Cropped Image) ---
     private val cropImage = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
             val resultUri = UCrop.getOutput(result.data!!)
@@ -78,8 +77,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
     }
 
     override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
+        inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
         _binding = FragmentCameraBinding.inflate(inflater, container, false)
@@ -89,9 +87,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Initialize Database Helper
         dbHelper = DatabaseHelper(requireContext())
-
         cameraExecutor = Executors.newSingleThreadExecutor()
 
         cameraExecutor.execute {
@@ -120,123 +116,88 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
     private fun bindListeners() {
         binding.apply {
             isGpu.setOnCheckedChangeListener { buttonView, isChecked ->
-                cameraExecutor.submit {
-                    detector?.restart(isGpu = isChecked)
-                }
-                if (isChecked) {
-                    buttonView.setBackgroundColor(ContextCompat.getColor(requireContext(), R.color.orange))
-                } else {
-                    buttonView.setBackgroundColor(ContextCompat.getColor(requireContext(), R.color.gray))
-                }
+                cameraExecutor.submit { detector?.restart(isGpu = isChecked) }
+                buttonView.setBackgroundColor(
+                    ContextCompat.getColor(
+                        requireContext(),
+                        if (isChecked) R.color.orange else R.color.gray
+                    )
+                )
             }
 
-            // --- SAVE BUTTON CLICK ---
             btnSave.setOnClickListener {
                 saveCurrentDetection()
             }
 
-            // --- GALLERY BUTTON CLICK ---
             btnGallery.setOnClickListener {
                 galleryLauncher.launch("image/*")
             }
 
-            // --- PAUSE/PLAY BUTTON ---
             fab.setOnClickListener {
-                // If we are showing a static image (Gallery OR Paused Snapshot)
                 if (binding.imagePreview.visibility == View.VISIBLE) {
                     restartCameraPreview()
                 } else {
-                    // Normal Camera Running
                     if (isCameraRunning) {
-                        // 1. Pause Camera
                         isCameraRunning = false
                         cameraProvider?.unbindAll()
                         binding.fab.setImageResource(android.R.drawable.ic_media_play)
 
-                        // 2. Show Snapshot in ImagePreview to "freeze" the UI
                         lastBitmap?.let { bmp ->
                             binding.imagePreview.setImageBitmap(bmp)
                             binding.imagePreview.visibility = View.VISIBLE
                             binding.viewFinder.visibility = View.INVISIBLE
-                            // Adjust overlay to match the bitmap dimensions
                             binding.overlay.setImageDimensions(bmp.width, bmp.height)
                         }
-
-                        // 3. Show Save Button
                         binding.btnSave.visibility = View.VISIBLE
-
                     } else {
-                        // Resume Camera (Standard resume logic)
-                        startCamera()
-                        binding.fab.setImageResource(android.R.drawable.ic_media_pause)
-                        isCameraRunning = true
-                        binding.btnSave.visibility = View.GONE
-                        binding.overlay.setCameraMode()
+                        restartCameraPreview()
                     }
                 }
             }
         }
     }
 
-    // --- HELPER: START CROP ---
     private fun startCrop(sourceUri: Uri) {
         try {
-            // Create unique temp file
             val destFile = File(requireContext().cacheDir, "cropped_cam_${System.currentTimeMillis()}.jpg")
             val destUri = Uri.fromFile(destFile)
-
             val options = UCrop.Options()
             options.setToolbarTitle("Crop for AI")
             options.setFreeStyleCropEnabled(true)
-
             val uCrop = UCrop.of(sourceUri, destUri).withOptions(options)
             cropImage.launch(uCrop.getIntent(requireContext()))
-
         } catch (e: Exception) {
             Log.e(TAG, "Error starting crop", e)
         }
     }
 
-    // --- LOGIC TO HANDLE GALLERY IMAGE ---
     private fun processGalleryImage(uri: Uri) {
         try {
-            // 1. Stop Camera
             cameraProvider?.unbindAll()
             isCameraRunning = false
             binding.fab.setImageResource(android.R.drawable.ic_media_play)
 
-            // 2. Load Bitmap
             val inputStream = requireContext().contentResolver.openInputStream(uri)
             val bitmap = BitmapFactory.decodeStream(inputStream)
-
-            // Store as lastBitmap for saving
             lastBitmap = bitmap
 
-            // 3. Show Image View & Hide Camera View
             binding.viewFinder.visibility = View.INVISIBLE
             binding.imagePreview.visibility = View.VISIBLE
             binding.imagePreview.setImageBitmap(bitmap)
             binding.overlay.setImageDimensions(bitmap.width, bitmap.height)
-
-            // Show Save Button
             binding.btnSave.visibility = View.VISIBLE
 
-            // 4. Run Detection on Background Thread
-            cameraExecutor.execute {
-                detector?.detect(bitmap)
-            }
-
+            cameraExecutor.execute { detector?.detect(bitmap) }
         } catch (e: Exception) {
             Log.e(TAG, "Error loading gallery image", e)
         }
     }
 
-    // --- LOGIC TO RESTART CAMERA ---
     private fun restartCameraPreview() {
         binding.imagePreview.visibility = View.GONE
         binding.viewFinder.visibility = View.VISIBLE
-        binding.btnSave.visibility = View.GONE // Hide Save
-        binding.overlay.setCameraMode() // Reset Overlay
+        binding.btnSave.visibility = View.GONE
+        binding.overlay.setCameraMode()
         binding.fab.setImageResource(android.R.drawable.ic_media_pause)
         startCamera()
         isCameraRunning = true
@@ -288,9 +249,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                 bitmapBuffer, 0, 0, bitmapBuffer.width, bitmapBuffer.height, matrix, true
             )
 
-            // CAPTURE CURRENT FRAME FOR SAVING
             lastBitmap = rotatedBitmap
-
             detector?.detect(rotatedBitmap)
         }
 
@@ -306,13 +265,55 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         }
     }
 
-    // --- SAVE LOGIC ---
+    // --- UPDATED SAVE FUNCTION ---
     private fun saveCurrentDetection() {
         val bitmapToSave = lastBitmap ?: return
         val resultsToSave = lastResults
 
+        // 1. Get Location
+        var currentLat = 0.0
+        var currentLng = 0.0
+        var placeName = "Location not available"
+
         try {
-            // 1. Create a Mutable Bitmap to draw on
+            if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                val locationManager = requireContext().getSystemService(Context.LOCATION_SERVICE) as LocationManager
+                val lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                    ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+
+                if (lastKnownLocation != null) {
+                    currentLat = lastKnownLocation.latitude
+                    currentLng = lastKnownLocation.longitude
+
+                    // 2. Reverse Geocode to get Name
+                    try {
+                        val geocoder = Geocoder(requireContext(), Locale.getDefault())
+                        @Suppress("DEPRECATION") // Use sync method for simplicity in this context
+                        val addresses = geocoder.getFromLocation(currentLat, currentLng, 1)
+                        if (!addresses.isNullOrEmpty()) {
+                            val address = addresses[0]
+                            // Construct a readable string (e.g., "Kanpur, Uttar Pradesh")
+                            val locality = address.locality ?: address.subAdminArea ?: ""
+                            val state = address.adminArea ?: ""
+                            placeName = if (locality.isNotEmpty()) "$locality, $state" else state
+                            if (placeName.isEmpty() || placeName == ", ") {
+                                placeName = address.getAddressLine(0)
+                            }
+                        } else {
+                            placeName = "Lat: %.4f, Lng: %.4f".format(currentLat, currentLng)
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Geocoder failed", e)
+                        placeName = "Lat: %.4f, Lng: %.4f".format(currentLat, currentLng)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Location error", e)
+        }
+
+        try {
+            // 3. Draw Bounding Boxes
             val mutableBitmap = bitmapToSave.copy(Bitmap.Config.ARGB_8888, true)
             val canvas = Canvas(mutableBitmap)
 
@@ -331,31 +332,22 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                 style = Paint.Style.FILL
             }
 
-            // 2. Draw Boxes and Text on the Bitmap
             resultsToSave.forEach { box ->
-                // Map normalized coordinates to bitmap dimensions
                 val left = box.x1 * mutableBitmap.width
                 val top = box.y1 * mutableBitmap.height
                 val right = box.x2 * mutableBitmap.width
                 val bottom = box.y2 * mutableBitmap.height
 
                 canvas.drawRect(left, top, right, bottom, boxPaint)
-
                 val text = "${box.clsName} ${String.format("%.2f", box.cnf)}"
                 val bounds = Rect()
                 textPaint.getTextBounds(text, 0, text.length, bounds)
 
-                canvas.drawRect(
-                    left,
-                    top,
-                    left + bounds.width() + 16,
-                    top + bounds.height() + 16,
-                    textBgPaint
-                )
+                canvas.drawRect(left, top, left + bounds.width() + 16, top + bounds.height() + 16, textBgPaint)
                 canvas.drawText(text, left, top + bounds.height(), textPaint)
             }
 
-            // 3. Save Image to Internal Storage
+            // 4. Save Image
             val filename = "fish_detect_${System.currentTimeMillis()}.jpg"
             val file = File(requireContext().filesDir, filename)
             val out = FileOutputStream(file)
@@ -363,23 +355,22 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             out.flush()
             out.close()
 
-            // 4. Prepare Data for DB
-            val fishCounts = resultsToSave
-                .groupBy { it.clsName }
-                .map { "${it.key}: ${it.value.size}" }
-                .joinToString(", ")
+            // 5. Insert to DB with Place Name
+            val fishCounts = resultsToSave.groupBy { it.clsName }.map { "${it.key}: ${it.value.size}" }.joinToString(", ")
+            val details = "Total: ${resultsToSave.size}, Conf: ${resultsToSave.map { String.format("%.2f", it.cnf) }}"
 
-            val details = "Total: ${resultsToSave.size}, Confidence: ${resultsToSave.map { String.format("%.2f", it.cnf) }}"
-
-            // 5. Insert into DB
             dbHelper.insertDetection(
                 timestamp = System.currentTimeMillis(),
                 imagePath = file.absolutePath,
                 fishCount = fishCounts.ifEmpty { "None" },
-                details = details
+                details = details,
+                lat = currentLat,
+                lng = currentLng,
+                placeName = placeName // Pass the name
             )
 
-            Toast.makeText(context, "Saved to Database!", Toast.LENGTH_SHORT).show()
+            val msg = if (currentLat != 0.0) "Saved at $placeName!" else "Saved (No GPS)"
+            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
 
         } catch (e: Exception) {
             Log.e(TAG, "Error saving detection", e)
@@ -410,11 +401,8 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         cameraExecutor.shutdown()
     }
 
-    // --- INTERFACE IMPLEMENTATION ---
     override fun onEmptyDetect() {
-        // Capture empty results for potential save
         lastResults = emptyList()
-
         activity?.runOnUiThread {
             if (_binding != null) {
                 binding.overlay.clear()
@@ -427,9 +415,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
     }
 
     override fun onDetect(boundingBoxes: List<BoundingBox>, inferenceTime: Long) {
-        // Capture results for potential save
         lastResults = boundingBoxes
-
         activity?.runOnUiThread {
             if (_binding != null) {
                 binding.inferenceTime.text = "${inferenceTime}ms"
@@ -437,15 +423,11 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                     setResults(boundingBoxes)
                     invalidate()
                 }
-
-                val fishCounts = boundingBoxes
-                    .groupBy { it.clsName }
+                val fishCounts = boundingBoxes.groupBy { it.clsName }
                     .map { (name, boxes) -> DetectionItem(name, boxes.size) }
                     .sortedByDescending { it.count }
 
-                val totalCount = boundingBoxes.size
-                binding.totalCountLabel.text = "Total Detected: $totalCount"
-
+                binding.totalCountLabel.text = "Total Detected: ${boundingBoxes.size}"
                 if (fishCounts.isEmpty()) {
                     binding.noDetectionText.visibility = View.VISIBLE
                     binding.detectionList.visibility = View.GONE
@@ -460,6 +442,10 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
 
     companion object {
         private const val TAG = "Camera"
-        private val REQUIRED_PERMISSIONS = mutableListOf(Manifest.permission.CAMERA).toTypedArray()
+        private val REQUIRED_PERMISSIONS = mutableListOf(
+            Manifest.permission.CAMERA,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ).toTypedArray()
     }
 }

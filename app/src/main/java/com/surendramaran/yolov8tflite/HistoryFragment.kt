@@ -29,7 +29,7 @@ class HistoryFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // 1. CRITICAL: Postpone transition until the list is drawn
+        // Postpone transition for the shared element animation
         postponeEnterTransition()
 
         dbHelper = DatabaseHelper(requireContext())
@@ -38,11 +38,10 @@ class HistoryFragment : Fragment() {
 
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
 
-        // Only load if we haven't already (prevents resetting adapter on return)
+        // Load history only if adapter isn't already set
         if (recyclerView.adapter == null) {
             loadHistory()
         } else {
-            // If adapter exists, just wait for draw
             waitForTransition()
         }
     }
@@ -59,11 +58,15 @@ class HistoryFragment : Fragment() {
             recyclerView.visibility = View.VISIBLE
 
             val adapter = HistoryAdapter(data) { item, imageView ->
+                // UPDATED: Added "lat" and "lng" to the bundle
                 val bundle = bundleOf(
                     "imagePath" to item.imagePath,
                     "timestamp" to item.timestamp,
                     "fishCount" to item.fishCount,
-                    "details" to item.details
+                    "details" to item.details,
+                    "placeName" to item.placeName,
+                    "lat" to item.lat,   // <--- THIS WAS MISSING
+                    "lng" to item.lng    // <--- THIS WAS MISSING
                 )
 
                 val extras = FragmentNavigatorExtras(
@@ -84,11 +87,8 @@ class HistoryFragment : Fragment() {
     }
 
     private fun waitForTransition() {
-        // 2. CRITICAL: Wait for the RecyclerView to layout everything before animating
         recyclerView.doOnPreDraw {
             startPostponedEnterTransition()
         }
     }
-
-    // REMOVED onResume() to prevent adapter reset
 }

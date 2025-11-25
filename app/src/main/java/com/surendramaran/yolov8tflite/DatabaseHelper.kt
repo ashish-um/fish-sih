@@ -5,13 +5,15 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 
-// Simple data model for the history list
 data class HistoryItem(
     val id: Int,
     val timestamp: Long,
     val imagePath: String,
     val fishCount: String,
-    val details: String
+    val details: String,
+    val lat: Double,
+    val lng: Double,
+    val placeName: String // NEW FIELD
 )
 
 class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
@@ -22,26 +24,33 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 + COLUMN_TIMESTAMP + " INTEGER,"
                 + COLUMN_IMAGE_PATH + " TEXT,"
                 + COLUMN_FISH_COUNT + " TEXT,"
-                + COLUMN_DETAILS + " TEXT" + ")")
+                + COLUMN_DETAILS + " TEXT,"
+                + COLUMN_LAT + " REAL,"
+                + COLUMN_LNG + " REAL,"
+                + COLUMN_PLACE_NAME + " TEXT" + ")") // NEW COLUMN
         db.execSQL(createTable)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        // Drop and recreate for simplicity during dev
         db.execSQL("DROP TABLE IF EXISTS $TABLE_NAME")
         onCreate(db)
     }
 
-    fun insertDetection(timestamp: Long, imagePath: String, fishCount: String, details: String): Long {
+    // UPDATED: Insert with Place Name
+    fun insertDetection(timestamp: Long, imagePath: String, fishCount: String, details: String, lat: Double, lng: Double, placeName: String): Long {
         val db = this.writableDatabase
         val values = ContentValues()
         values.put(COLUMN_TIMESTAMP, timestamp)
         values.put(COLUMN_IMAGE_PATH, imagePath)
         values.put(COLUMN_FISH_COUNT, fishCount)
         values.put(COLUMN_DETAILS, details)
+        values.put(COLUMN_LAT, lat)
+        values.put(COLUMN_LNG, lng)
+        values.put(COLUMN_PLACE_NAME, placeName)
         return db.insert(TABLE_NAME, null, values)
     }
 
-    // NEW: Fetch all detections sorted by newest first
     fun getAllDetections(): List<HistoryItem> {
         val list = mutableListOf<HistoryItem>()
         val db = this.readableDatabase
@@ -54,8 +63,14 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 val imagePath = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_IMAGE_PATH))
                 val fishCount = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_FISH_COUNT))
                 val details = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DETAILS))
+                val lat = cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_LAT))
+                val lng = cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_LNG))
 
-                list.add(HistoryItem(id, timestamp, imagePath, fishCount, details))
+                // Fetch Place Name (Handle older DB versions gracefully if needed)
+                val placeNameIndex = cursor.getColumnIndex(COLUMN_PLACE_NAME)
+                val placeName = if (placeNameIndex != -1) cursor.getString(placeNameIndex) else "Unknown Location"
+
+                list.add(HistoryItem(id, timestamp, imagePath, fishCount, details, lat, lng, placeName))
             } while (cursor.moveToNext())
         }
         cursor.close()
@@ -63,7 +78,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
     }
 
     companion object {
-        private const val DATABASE_VERSION = 1
+        private const val DATABASE_VERSION = 3 // Incremented Version
         private const val DATABASE_NAME = "FishDetectionDB"
         const val TABLE_NAME = "detections"
         const val COLUMN_ID = "id"
@@ -71,5 +86,8 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         const val COLUMN_IMAGE_PATH = "image_path"
         const val COLUMN_FISH_COUNT = "fish_count"
         const val COLUMN_DETAILS = "details"
+        const val COLUMN_LAT = "latitude"
+        const val COLUMN_LNG = "longitude"
+        const val COLUMN_PLACE_NAME = "place_name"
     }
 }

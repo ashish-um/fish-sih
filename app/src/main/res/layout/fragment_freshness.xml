@@ -17,7 +17,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="24dp"
-            android:text="Fish Freshness Check"
+            android:text="Freshness AI"
             android:textColor="#000000"
             android:textSize="28sp"
             android:textStyle="bold"
@@ -26,9 +26,9 @@
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="20dp"
+            android:layout_marginBottom="24dp"
             app:cardCornerRadius="16dp"
-            app:cardElevation="0dp"
+            app:cardElevation="2dp"
             app:strokeColor="#E0E0E0"
             app:strokeWidth="1dp"
             android:backgroundTint="@android:color/white">
@@ -37,8 +37,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp"
-                android:gravity="center_horizontal">
+                android:padding="12dp">
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -47,74 +46,92 @@
                     android:textSize="18sp"
                     android:textStyle="bold"
                     android:textColor="#000000"
-                    android:layout_marginBottom="12dp"/>
+                    android:layout_marginBottom="12dp"
+                    android:layout_gravity="center_horizontal"/>
 
                 <androidx.cardview.widget.CardView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
+                    android:layout_width="match_parent"
+                    android:layout_height="320dp"
                     app:cardCornerRadius="12dp"
                     app:cardElevation="0dp"
-                    android:backgroundTint="#F5F5F5">
+                    app:cardBackgroundColor="#000000">
 
-                    <ImageView
-                        android:id="@+id/imgEyes"
-                        android:layout_width="200dp"
-                        android:layout_height="200dp"
-                        android:src="@drawable/ic_placeholder"
-                        android:scaleType="fitCenter"
-                        android:padding="60dp"/> </androidx.cardview.widget.CardView>
+                    <androidx.constraintlayout.widget.ConstraintLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center"
-                    android:layout_marginTop="16dp">
+                        <androidx.camera.view.PreviewView
+                            android:id="@+id/viewFinderEyes"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            app:scaleType="fillCenter"/>
 
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnUploadEyes"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Gallery"
-                        android:textColor="#2196F3"
-                        android:layout_marginEnd="8dp"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        app:strokeColor="#2196F3"
-                        app:icon="@android:drawable/ic_menu_gallery"
-                        app:iconTint="#2196F3"/>
+                        <ImageView
+                            android:id="@+id/imgEyes"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:scaleType="fitCenter"
+                            android:visibility="gone"/>
 
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnCameraEyes"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Camera"
-                        android:layout_marginStart="8dp"
-                        android:backgroundTint="#2196F3"
-                        android:textColor="@android:color/white"
-                        app:icon="@android:drawable/ic_menu_camera"
-                        app:iconTint="@android:color/white"/>
-                </LinearLayout>
+                        <com.surendramaran.yolov8tflite.OverlayView
+                            android:id="@+id/overlayEyes"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:translationZ="5dp"/>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center"
+                            android:paddingVertical="16dp"
+                            android:background="#66000000"
+                            android:translationZ="10dp"
+                            app:layout_constraintBottom_toBottomOf="parent">
+
+                            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                                android:id="@+id/btnGalleryEyes"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginEnd="32dp"
+                                app:backgroundTint="@android:color/white"
+                                app:tint="@android:color/black"
+                                android:src="@android:drawable/ic_menu_gallery"
+                                app:fabSize="mini"/>
+
+                            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                                android:id="@+id/btnPlayPauseEyes"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                app:backgroundTint="@android:color/white"
+                                app:tint="@android:color/black"
+                                android:src="@android:drawable/ic_media_play"
+                                app:fabSize="normal" />
+                        </LinearLayout>
+
+                    </androidx.constraintlayout.widget.ConstraintLayout>
+                </androidx.cardview.widget.CardView>
 
                 <TextView
                     android:id="@+id/txtResultEyes"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:text="Not analyzed yet"
+                    android:text="Ready to scan"
+                    android:layout_gravity="center_horizontal"
                     android:textSize="14sp"
                     android:textStyle="bold"
                     android:textColor="#757575"/>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
+
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="24dp"
             app:cardCornerRadius="16dp"
-            app:cardElevation="0dp"
+            app:cardElevation="2dp"
             app:strokeColor="#E0E0E0"
             app:strokeWidth="1dp"
             android:backgroundTint="@android:color/white">
@@ -123,8 +140,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp"
-                android:gravity="center_horizontal">
+                android:padding="12dp">
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -133,62 +149,79 @@
                     android:textSize="18sp"
                     android:textStyle="bold"
                     android:textColor="#000000"
-                    android:layout_marginBottom="12dp"/>
+                    android:layout_marginBottom="12dp"
+                    android:layout_gravity="center_horizontal"/>
 
                 <androidx.cardview.widget.CardView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
+                    android:layout_width="match_parent"
+                    android:layout_height="320dp"
                     app:cardCornerRadius="12dp"
                     app:cardElevation="0dp"
-                    android:backgroundTint="#F5F5F5">
+                    app:cardBackgroundColor="#000000">
 
-                    <ImageView
-                        android:id="@+id/imgGills"
-                        android:layout_width="200dp"
-                        android:layout_height="200dp"
-                        android:src="@drawable/ic_placeholder"
-                        android:scaleType="fitCenter"
-                        android:padding="60dp"/> </androidx.cardview.widget.CardView>
+                    <androidx.constraintlayout.widget.ConstraintLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center"
-                    android:layout_marginTop="16dp">
+                        <androidx.camera.view.PreviewView
+                            android:id="@+id/viewFinderGills"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            app:scaleType="fillCenter"/>
 
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnUploadGills"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Gallery"
-                        android:textColor="#2196F3"
-                        android:layout_marginEnd="8dp"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        app:strokeColor="#2196F3"
-                        app:icon="@android:drawable/ic_menu_gallery"
-                        app:iconTint="#2196F3"/>
+                        <ImageView
+                            android:id="@+id/imgGills"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:scaleType="fitCenter"
+                            android:visibility="gone"/>
 
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnCameraGills"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Camera"
-                        android:layout_marginStart="8dp"
-                        android:backgroundTint="#2196F3"
-                        android:textColor="@android:color/white"
-                        app:icon="@android:drawable/ic_menu_camera"
-                        app:iconTint="@android:color/white"/>
-                </LinearLayout>
+                        <com.surendramaran.yolov8tflite.OverlayView
+                            android:id="@+id/overlayGills"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:translationZ="5dp"/>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center"
+                            android:paddingVertical="16dp"
+                            android:background="#66000000"
+                            android:translationZ="10dp"
+                            app:layout_constraintBottom_toBottomOf="parent">
+
+                            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                                android:id="@+id/btnGalleryGills"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginEnd="32dp"
+                                app:backgroundTint="@android:color/white"
+                                app:tint="@android:color/black"
+                                android:src="@android:drawable/ic_menu_gallery"
+                                app:fabSize="mini"/>
+
+                            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                                android:id="@+id/btnPlayPauseGills"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                app:backgroundTint="@android:color/white"
+                                app:tint="@android:color/black"
+                                android:src="@android:drawable/ic_media_play"
+                                app:fabSize="normal" />
+                        </LinearLayout>
+
+                    </androidx.constraintlayout.widget.ConstraintLayout>
+                </androidx.cardview.widget.CardView>
 
                 <TextView
                     android:id="@+id/txtResultGills"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:text="Not analyzed yet"
+                    android:text="Ready to scan"
+                    android:layout_gravity="center_horizontal"
                     android:textSize="14sp"
                     android:textStyle="bold"
                     android:textColor="#757575"/>
@@ -199,8 +232,9 @@
             android:id="@+id/cardFinalVerdict"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginBottom="32dp"
             app:cardCornerRadius="12dp"
-            app:cardElevation="0dp"
+            app:cardElevation="2dp"
             app:strokeWidth="0dp"
             app:cardBackgroundColor="#757575">
 
@@ -225,7 +259,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:text="Upload both images"
+                    android:text="Scan both parts"
                     android:textColor="#FFFFFF"
                     android:textSize="22sp"
                     android:textStyle="bold"

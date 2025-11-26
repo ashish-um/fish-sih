@@ -97,7 +97,8 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         setupRecyclerView()
 
         if (allPermissionsGranted()) {
-            startCamera()
+            // UPDATED: Post to ensure view dimensions are ready for cropping
+            binding.viewFinder.post { startCamera() }
         } else {
             requestPermissionLauncher.launch(REQUIRED_PERMISSIONS)
         }
@@ -125,15 +126,13 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                 )
             }
 
-            // NEW: Dialog Button Listeners
+            // Dialog Button Listeners
             btnDialogSave.setOnClickListener {
                 saveCurrentDetection()
-                // Hide dialog after saving
                 saveDialog.visibility = View.GONE
             }
 
             btnDialogDiscard.setOnClickListener {
-                // Discard capture and restart camera
                 restartCameraPreview()
             }
 
@@ -156,7 +155,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                             binding.viewFinder.visibility = View.INVISIBLE
                             binding.overlay.setImageDimensions(bmp.width, bmp.height)
                         }
-                        // UPDATED: Show Dialog instead of Save Button
                         binding.saveDialog.visibility = View.VISIBLE
                     } else {
                         restartCameraPreview()
@@ -195,7 +193,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             binding.imagePreview.setImageBitmap(bitmap)
             binding.overlay.setImageDimensions(bitmap.width, bitmap.height)
 
-            // UPDATED: Show Dialog
             binding.saveDialog.visibility = View.VISIBLE
 
             cameraExecutor.execute { detector?.detect(bitmap) }
@@ -207,7 +204,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
     private fun restartCameraPreview() {
         binding.imagePreview.visibility = View.GONE
         binding.viewFinder.visibility = View.VISIBLE
-        // UPDATED: Hide Dialog
         binding.saveDialog.visibility = View.GONE
 
         binding.overlay.setCameraMode()
@@ -227,6 +223,10 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
     private fun bindCameraUseCases() {
         val cameraProvider = cameraProvider ?: throw IllegalStateException("Camera initialization failed.")
         val rotation = view?.display?.rotation ?: android.view.Surface.ROTATION_0
+
+        // Capture View Dimensions for Cropping
+        val viewWidth = binding.viewFinder.width
+        val viewHeight = binding.viewFinder.height
 
         val cameraSelector = CameraSelector.Builder()
             .requireLensFacing(CameraSelector.LENS_FACING_BACK)
@@ -262,8 +262,11 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                 bitmapBuffer, 0, 0, bitmapBuffer.width, bitmapBuffer.height, matrix, true
             )
 
-            lastBitmap = rotatedBitmap
-            detector?.detect(rotatedBitmap)
+            // UPDATED: Crop to View
+            val croppedBitmap = cropBitmapToView(rotatedBitmap, viewWidth, viewHeight)
+
+            lastBitmap = croppedBitmap
+            detector?.detect(croppedBitmap)
         }
 
         cameraProvider.unbindAll()
@@ -276,6 +279,42 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         } catch (exc: Exception) {
             Log.e(TAG, "Use case binding failed", exc)
         }
+    }
+
+    // NEW: Cropping Logic (Same as FreshnessFragment)
+    private fun cropBitmapToView(bitmap: Bitmap, viewWidth: Int, viewHeight: Int): Bitmap {
+        val bitmapWidth = bitmap.width
+        val bitmapHeight = bitmap.height
+
+        if (viewWidth == 0 || viewHeight == 0) return bitmap
+
+        val bitmapRatio = bitmapWidth.toFloat() / bitmapHeight
+        val viewRatio = viewWidth.toFloat() / viewHeight
+
+        var cropX = 0
+        var cropY = 0
+        var cropWidth = bitmapWidth
+        var cropHeight = bitmapHeight
+
+        if (bitmapRatio > viewRatio) {
+            // Bitmap is wider -> Crop Width
+            cropHeight = bitmapHeight
+            cropWidth = (bitmapHeight * viewRatio).toInt()
+            cropX = (bitmapWidth - cropWidth) / 2
+        } else {
+            // Bitmap is taller -> Crop Height
+            cropWidth = bitmapWidth
+            cropHeight = (bitmapWidth / viewRatio).toInt()
+            cropY = (bitmapHeight - cropHeight) / 2
+        }
+
+        // Safety checks
+        if (cropWidth <= 0) cropWidth = 1
+        if (cropHeight <= 0) cropHeight = 1
+        if (cropX < 0) cropX = 0
+        if (cropY < 0) cropY = 0
+
+        return Bitmap.createBitmap(bitmap, cropX, cropY, cropWidth, cropHeight)
     }
 
     private fun saveCurrentDetection() {
@@ -397,7 +436,8 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         if (permissions[Manifest.permission.CAMERA] == true) {
-            startCamera()
+            // Post to ensure view dimensions are ready
+            binding.viewFinder.post { startCamera() }
         }
     }
 

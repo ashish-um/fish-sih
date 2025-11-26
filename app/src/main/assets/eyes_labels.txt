@@ -1,2 +1,2 @@
-Fresh Eye
-Non-Fresh Eye
+fresh-eyes
+non-fresh-eyes

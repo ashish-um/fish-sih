@@ -10,6 +10,21 @@
         android:label="Camera" />
 
     <fragment
+        android:id="@+id/freshnessFragment"
+        android:name="com.surendramaran.yolov8tflite.FreshnessFragment"
+        android:label="Check Freshness" />
+
+    <fragment
+        android:id="@+id/volumeFragment"
+        android:name="com.surendramaran.yolov8tflite.VolumeFragment"
+        android:label="Volume" />
+
+    <fragment
+        android:id="@+id/moreFragment"
+        android:name="com.surendramaran.yolov8tflite.MoreFragment"
+        android:label="More" />
+
+    <fragment
         android:id="@+id/chatFragment"
         android:name="com.surendramaran.yolov8tflite.ChatFragment"
         android:label="AI Chat" />
@@ -20,15 +35,9 @@
         android:label="Map" />
 
     <fragment
-        android:id="@+id/freshnessFragment"
-        android:name="com.surendramaran.yolov8tflite.FreshnessFragment"
-        android:label="Check Freshness" />
-
-    <fragment
         android:id="@+id/historyFragment"
         android:name="com.surendramaran.yolov8tflite.HistoryFragment"
         android:label="History">
-
         <action
             android:id="@+id/action_history_to_detail"
             app:destination="@id/historyDetailFragment"
@@ -42,18 +51,10 @@
         android:id="@+id/historyDetailFragment"
         android:name="com.surendramaran.yolov8tflite.HistoryDetailFragment"
         android:label="Detection Detail">
-        <argument
-            android:name="imagePath"
-            app:argType="string" />
-        <argument
-            android:name="timestamp"
-            app:argType="long" />
-        <argument
-            android:name="fishCount"
-            app:argType="string" />
-        <argument
-            android:name="details"
-            app:argType="string" />
+        <argument android:name="imagePath" app:argType="string" />
+        <argument android:name="timestamp" app:argType="long" />
+        <argument android:name="fishCount" app:argType="string" />
+        <argument android:name="details" app:argType="string" />
     </fragment>
 
 </navigation>

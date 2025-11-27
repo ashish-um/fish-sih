@@ -9,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId = "com.surendramaran.yolov8tflite"
-        minSdk = 26
+        minSdk = 28
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
@@ -63,6 +63,7 @@ dependencies {
 
     implementation("org.tensorflow:tensorflow-lite:2.16.1")
     implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
+    implementation("org.tensorflow:tensorflow-lite-metadata:0.4.4")
 
     implementation("org.tensorflow:tensorflow-lite-gpu-delegate-plugin:0.4.4")
     implementation("org.tensorflow:tensorflow-lite-gpu-api:2.16.1")
@@ -90,4 +91,6 @@ dependencies {
 
     // Add this line for Image Cropping
     implementation("com.github.yalantis:ucrop:2.2.8")
+
+    implementation ("com.quickbirdstudios:opencv-contrib:4.5.3.0")
 }

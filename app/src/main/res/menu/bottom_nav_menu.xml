@@ -3,7 +3,7 @@
     <item
         android:id="@+id/cameraFragment"
         android:icon="@android:drawable/ic_menu_camera"
-        android:title="Camera AI" />
+        android:title="Identify" />
 
     <item
         android:id="@+id/freshnessFragment"
@@ -11,17 +11,12 @@
         android:title="Freshness" />
 
     <item
-        android:id="@+id/historyFragment"
-        android:icon="@android:drawable/ic_menu_recent_history"
-        android:title="History" />
+        android:id="@+id/volumeFragment"
+        android:icon="@android:drawable/ic_menu_rotate"
+        android:title="Volume" />
 
     <item
-        android:id="@+id/chatFragment"
-        android:icon="@android:drawable/ic_menu_help"
-        android:title="Ask AI" />
-
-    <item
-        android:id="@+id/mapFragment"
-        android:icon="@android:drawable/ic_dialog_map"
-        android:title="ISRO Map" />
+        android:id="@+id/moreFragment"
+        android:icon="@android:drawable/ic_menu_sort_by_size"
+        android:title="More" />
 </menu>

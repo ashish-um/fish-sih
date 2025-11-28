@@ -24,7 +24,6 @@ class DrawImages(private val context: Context) {
 
     data class SpeciesInfo(val a: Double, val b: Double, val ratio: Double)
 
-    // Database with ratio for volume estimation
     private val speciesDB = mapOf(
         "tuna" to SpeciesInfo(0.0149, 2.95, 0.60),
         "salmon" to SpeciesInfo(0.0134, 2.98, 0.55),
@@ -55,10 +54,11 @@ class DrawImages(private val context: Context) {
         isSeparateOut: Boolean,
         isMaskOut: Boolean,
         speciesBoxes: List<BoundingBox>,
-        pixelsPerCm: Float
+        pixelsPerCm: Float,
+        isMarkerDetected: Boolean // <--- NEW PARAMETER
     ) : List<AnalysisResult> {
 
-        // CASE 1: SEPARATE OUT CHECKED
+        // CASE 1: SEPARATE OUT
         if (isSeparateOut) {
             if (isMaskOut) {
                 return success.results.map {
@@ -75,13 +75,13 @@ class DrawImages(private val context: Context) {
                     val new = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
                     val infoText = applyTransparentOverlay(
                         context, new, it, R.color.overlay_pink,
-                        speciesBoxes, pixelsPerCm
+                        speciesBoxes, pixelsPerCm, isMarkerDetected
                     )
                     AnalysisResult(original, new, infoText)
                 }
             }
         }
-        // CASE 2: COMBINED VIEW (Default)
+        // CASE 2: COMBINED VIEW
         else {
             if (isMaskOut) {
                 val list = success.results.map { it.mask }.toTypedArray()
@@ -102,7 +102,7 @@ class DrawImages(private val context: Context) {
                     val text = applyTransparentOverlay(
                         context, combined, result,
                         colorPairs[result.box.cls] ?: R.color.primary,
-                        speciesBoxes, pixelsPerCm
+                        speciesBoxes, pixelsPerCm, isMarkerDetected
                     )
                     if (text.isNotEmpty()) {
                         allDescriptions.append("Fish ${index + 1}:\n$text\n\n")
@@ -121,7 +121,6 @@ class DrawImages(private val context: Context) {
         for (y in 0 until image.height) {
             for (x in 0 until image.width) {
                 val pixel = image.getPixel(x, y)
-                // Keep pixel if mask is 1, else black
                 result.setPixel(x, y, if (mask[y][x] == 1) pixel else Color.BLACK)
             }
         }
@@ -132,8 +131,6 @@ class DrawImages(private val context: Context) {
         if (this.isEmpty() || this.first().isEmpty()) return emptyArray()
         val h = size; val w = first().first().size
         val result = Array(h) { IntArray(w) }
-
-        // Correct implementation for combining masks (OR operation)
         for (mask in this) {
             if (mask.size != h || mask[0].size != w) continue
             for (y in 0 until h) {
@@ -151,7 +148,8 @@ class DrawImages(private val context: Context) {
         segmentationResult: SegmentationResult,
         overlayColorResId: Int,
         speciesBoxes: List<BoundingBox>,
-        pixelsPerCm: Float
+        pixelsPerCm: Float,
+        isMarkerDetected: Boolean
     ): String {
         var detectedInfo = ""
         val width = overlay.width
@@ -178,7 +176,6 @@ class DrawImages(private val context: Context) {
             Imgproc.findContours(maskMat, contours, Mat(), Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE)
 
             val canvas = Canvas(overlay)
-
             val paintBox = Paint().apply {
                 color = Color.WHITE
                 style = Paint.Style.STROKE
@@ -186,20 +183,30 @@ class DrawImages(private val context: Context) {
                 isAntiAlias = true
             }
 
-            // Text paint for the overlay
             val paintText = Paint().apply {
                 color = Color.WHITE
-                textSize = 28f // Slightly smaller to fit details
+                textSize = 28f
                 style = Paint.Style.FILL
                 isAntiAlias = true
                 setShadowLayer(3f, 0f, 0f, Color.BLACK)
             }
 
-            for (contour in contours) {
-                // Filter small noise
-                if (Imgproc.contourArea(contour) > 100) {
+            // Paint for WARNING text on image
+            val paintWarning = Paint().apply {
+                color = Color.RED
+                textSize = 36f
+                style = Paint.Style.FILL
+                isAntiAlias = true
+                setShadowLayer(3f, 0f, 0f, Color.WHITE)
+            }
 
-                    // 1. Geometry (Rotated Rect)
+            // Draw Warning on Canvas if missing (Once per image is enough, but loop is okay)
+            if (!isMarkerDetected) {
+                canvas.drawText("⚠️ ESTIMATED SCALE", 20f, 50f, paintWarning)
+            }
+
+            for (contour in contours) {
+                if (Imgproc.contourArea(contour) > 100) {
                     val point2f = MatOfPoint2f(*contour.toArray())
                     val rotatedRect = Imgproc.minAreaRect(point2f)
 
@@ -211,7 +218,6 @@ class DrawImages(private val context: Context) {
                     path.close()
                     canvas.drawPath(path, paintBox)
 
-                    // 2. Matching (IoU)
                     val rect = Imgproc.boundingRect(contour)
                     val maskBoxNorm = RectF(
                         rect.x.toFloat() / width, rect.y.toFloat() / height,
@@ -220,7 +226,6 @@ class DrawImages(private val context: Context) {
 
                     var bestName = "Unknown"
                     var maxIoU = 0.0f
-
                     for (box in speciesBoxes) {
                         val speciesRect = RectF(box.x1, box.y1, box.x2, box.y2)
                         val iou = calculateIoU(maskBoxNorm, speciesRect)
@@ -230,20 +235,14 @@ class DrawImages(private val context: Context) {
                         }
                     }
 
-                    // 3. Measurements & Calculations
-                    // Rotated Rect Dimensions (Pixels)
                     val wPx = rotatedRect.size.width
                     val hPx = rotatedRect.size.height
-
-                    // Identify Length (Max) and Width (Min)
                     val lengthPx = max(wPx, hPx)
                     val widthPx = min(wPx, hPx)
 
-                    // Convert to CM
                     val lengthCm = lengthPx / pixelsPerCm
                     val widthCm = widthPx / pixelsPerCm
 
-                    // Lookup Biology Data
                     var bio = speciesDB["default"]!!
                     for ((key, value) in speciesDB) {
                         if (bestName.contains(key, ignoreCase = true)) {
@@ -252,30 +251,25 @@ class DrawImages(private val context: Context) {
                         }
                     }
 
-                    // Weight Estimation: W = a * L^b
                     val weightG = bio.a * lengthCm.pow(bio.b)
 
-                    // Volume Estimation
-                    // Method: MaskArea * EstimatedDepth
-                    // EstimatedDepth = Width * ratio (Assumption: fish cross-section ratio)
+                    // Volume Calculation
                     val areaPx = Imgproc.contourArea(contour)
                     val areaCm2 = areaPx / (pixelsPerCm * pixelsPerCm)
                     val estimatedDepthCm = widthCm * bio.ratio
                     val volumeCm3 = areaCm2 * estimatedDepthCm
 
-                    // 4. Construct Strings
-                    // Formatted string for UI (More detailed)
-                    detectedInfo = """
+                    // PREPEND WARNING TO DESCRIPTION
+                    val warningPrefix = if (!isMarkerDetected) "⚠️ NO MARKER - ESTIMATED SCALE (50px/cm)\n" else ""
+
+                    detectedInfo = warningPrefix + """
                         Species: $bestName
                         Box: L:${f(lengthCm)}cm x W:${f(widthCm)}cm
                         Const: a=${bio.a}, b=${bio.b}
                         Est: ${f(volumeCm3)}cm³ | ${f0(weightG)}g
                     """.trimIndent()
 
-                    // Formatted string for Overlay (Concise)
                     val overlayText = "$bestName | L:${f(lengthCm)} W:${f(widthCm)} | ${f0(weightG)}g"
-
-                    // Draw on Image (Just above the box)
                     canvas.drawText(overlayText, rect.x.toFloat(), rect.y.toFloat() - 10, paintText)
                 }
                 contour.release()
@@ -287,7 +281,6 @@ class DrawImages(private val context: Context) {
         return detectedInfo
     }
 
-    // Helper for formatting doubles
     private fun f(value: Double) = String.format("%.1f", value)
     private fun f0(value: Double) = String.format("%.0f", value)
 
@@ -296,13 +289,10 @@ class DrawImages(private val context: Context) {
         val intersectTop = max(r1.top, r2.top)
         val intersectRight = min(r1.right, r2.right)
         val intersectBottom = min(r1.bottom, r2.bottom)
-
         if (intersectRight < intersectLeft || intersectBottom < intersectTop) return 0f
-
         val intersectionArea = (intersectRight - intersectLeft) * (intersectBottom - intersectTop)
         val r1Area = (r1.right - r1.left) * (r1.bottom - r1.top)
         val r2Area = (r2.right - r2.left) * (r2.bottom - r2.top)
-
         return intersectionArea / (r1Area + r2Area - intersectionArea)
     }
 

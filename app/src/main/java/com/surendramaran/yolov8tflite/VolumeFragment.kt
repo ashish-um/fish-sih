@@ -54,15 +54,15 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
     private val viewModel: SettingsViewModel by activityViewModels()
 
     private var instanceSegmentation: InstanceSegmentation? = null
-    private var detector: Detector? = null // Species Detector
+    private var detector: Detector? = null
 
     private lateinit var orientationLiveData: OrientationLiveData
     private lateinit var viewPagerAdapter: ViewPagerAdapter
     private lateinit var drawImages: DrawImages
 
-    // Temp storage for the flow
     private var currentBitmap: Bitmap? = null
     private var currentScale: Float = 50.0f // Default pixels per cm
+    private var isMarkerDetected: Boolean = false // Track detection status
 
     private val cropImage = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
@@ -70,14 +70,14 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
             resultUri?.let { uri ->
                 val bitmap = Utils.getBitmapFromUri(requireContext(), uri) ?: return@let
 
-                // 1. Run ArUco to get Scale and visual box
-                val (markedBitmap, scale) = detectArUcoMarkers(bitmap)
+                // 1. Run ArUco (Returns: Bitmap, Scale, isFound)
+                val (markedBitmap, scale, found) = detectArUcoMarkers(bitmap)
 
                 currentBitmap = markedBitmap
                 currentScale = scale
+                isMarkerDetected = found // Store status
 
                 // 2. Run Species Detector
-                // This will trigger onDetect or onEmptyDetect when finished
                 detector?.detect(markedBitmap)
             }
         } else if (result.resultCode == UCrop.RESULT_ERROR) {
@@ -117,7 +117,6 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
             Log.d("VolumeFragment", "OpenCV loaded successfully")
         }
 
-        // Initialize Segmentation Model
         instanceSegmentation = InstanceSegmentation(
             context = requireContext(),
             modelPath = SEG_MODEL_PATH,
@@ -125,7 +124,6 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
             smoothnessKernel = 5
         ) { error -> toast(error) }
 
-        // Initialize Species Detector
         detector = Detector(
             context = requireContext(),
             modelPath = MODEL_PATH,
@@ -137,23 +135,20 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
         bindListeners()
     }
 
-    // --- DetectorListener Methods ---
     override fun onDetect(boundingBoxes: List<BoundingBox>, inferenceTime: Long) {
-        // 3. Species Detected -> Run Segmentation
         currentBitmap?.let {
             runInstanceSegmentation(it, boundingBoxes, currentScale)
         }
     }
 
     override fun onEmptyDetect() {
-        // 3. No Species Detected -> Run Segmentation anyway
         currentBitmap?.let {
             runInstanceSegmentation(it, emptyList(), currentScale)
         }
     }
-    // --------------------------------
 
-    private fun detectArUcoMarkers(bitmap: Bitmap): Pair<Bitmap, Float> {
+    // UPDATED: Returns Triple(Bitmap, Scale, IsFound)
+    private fun detectArUcoMarkers(bitmap: Bitmap): Triple<Bitmap, Float, Boolean> {
         val mat = Mat()
         OpenCVUtils.bitmapToMat(bitmap, mat)
 
@@ -171,7 +166,7 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
         parameters.set_adaptiveThreshWinSizeMax(23)
         parameters.set_adaptiveThreshWinSizeStep(10)
 
-        var detectedScale = 50.0f // Default guess
+        var detectedScale = 50.0f // Default fallback
         var markerFound = false
 
         try {
@@ -183,10 +178,8 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
                 }
 
                 // Calculate Scale
-                // Marker size in Python script is 5.0 cm
                 val markerSizeCm = 5.0f
-                val c = corners[0] // Get first marker
-                // Corner 0 is top-left, Corner 1 is top-right
+                val c = corners[0]
                 val xDiff = c.get(0, 0)[0] - c.get(0, 1)[0]
                 val yDiff = c.get(0, 0)[1] - c.get(0, 1)[1]
                 val widthPx = sqrt(xDiff.pow(2) + yDiff.pow(2)).toFloat()
@@ -195,6 +188,8 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
                 markerFound = true
 
                 Log.d("VolumeFragment", "Marker Found. Scale: $detectedScale px/cm")
+            } else {
+                Log.w("VolumeFragment", "No Marker Found. Using default: $detectedScale px/cm")
             }
         } catch (e: Exception) {
             Log.e("VolumeFragment", "ArUco Error", e)
@@ -206,7 +201,7 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
         mat.release(); rgbMat.release(); grayMat.release(); ids.release()
         corners.forEach { it.release() }
 
-        return Pair(resultBitmap, detectedScale)
+        return Triple(resultBitmap, detectedScale, markerFound)
     }
 
     private fun bindListeners() {
@@ -250,18 +245,18 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
             binding.tvInferenceTime.text = "Inference: ${success.interfaceTime}ms"
         }
 
-        // The returned 'images' is now List<AnalysisResult>
+        // Pass 'isMarkerDetected' to DrawImages
         val analysisResults = drawImages.invoke(
             original = original,
             success = success,
             isSeparateOut = viewModel.isSeparateOutChecked,
             isMaskOut = viewModel.isMaskOutChecked,
             speciesBoxes = speciesBoxes,
-            pixelsPerCm = scale
+            pixelsPerCm = scale,
+            isMarkerDetected = isMarkerDetected // <--- PASSED HERE
         )
 
         requireActivity().runOnUiThread {
-            // Pass the results directly to the adapter
             viewPagerAdapter.updateImages(analysisResults)
         }
     }
@@ -269,13 +264,12 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
     private fun clearOutput(error: String) {
         requireActivity().runOnUiThread {
             binding.tvInferenceTime.text = "--"
-            viewPagerAdapter.updateImages(emptyList()) // Pass empty list
+            viewPagerAdapter.updateImages(emptyList())
             Toast.makeText(requireContext(), error, Toast.LENGTH_SHORT).show()
         }
     }
 
     private fun showSettingsDialog() {
-        // ... (Keep existing code) ...
         val dialog = Dialog(requireContext())
         val dialogBinding = DialogSettingsBinding.inflate(layoutInflater)
         dialog.setContentView(dialogBinding.root)

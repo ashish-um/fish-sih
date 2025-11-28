@@ -1,13 +1,13 @@
 package com.surendramaran.yolov8tflite.segmentation.ui
 
 import android.annotation.SuppressLint
-import android.graphics.Bitmap
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
-import com.surendramaran.yolov8tflite.databinding.ItemImageBinding // USE THIS
+import com.surendramaran.yolov8tflite.databinding.ItemImageBinding
+import com.surendramaran.yolov8tflite.segmentation.AnalysisResult
 
-class ViewPagerAdapter(private val images: MutableList<Pair<Bitmap, Bitmap?>>) : RecyclerView.Adapter<ViewPagerAdapter.ViewPagerHolder>() {
+class ViewPagerAdapter(private val results: MutableList<AnalysisResult>) : RecyclerView.Adapter<ViewPagerAdapter.ViewPagerHolder>() {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewPagerHolder {
         val layoutInflater = LayoutInflater.from(parent.context)
@@ -16,25 +16,26 @@ class ViewPagerAdapter(private val images: MutableList<Pair<Bitmap, Bitmap?>>) :
     }
 
     override fun onBindViewHolder(holder: ViewPagerHolder, position: Int) {
-        holder.bind(images[position])
+        holder.bind(results[position])
     }
 
     override fun getItemCount(): Int {
-        return images.size
+        return results.size
     }
 
-    class ViewPagerHolder(private var itemImageBinding: ItemImageBinding) :
-        RecyclerView.ViewHolder(itemImageBinding.root) {
-        fun bind(images: Pair<Bitmap, Bitmap?>) {
-            itemImageBinding.image.setImageBitmap(images.first)
-            itemImageBinding.overlay.setImageBitmap(images.second)
+    class ViewPagerHolder(private var binding: ItemImageBinding) :
+        RecyclerView.ViewHolder(binding.root) {
+        fun bind(result: AnalysisResult) {
+            binding.image.setImageBitmap(result.original)
+            binding.overlay.setImageBitmap(result.overlay)
+            binding.tvDescription.text = result.description
         }
     }
 
     @SuppressLint("NotifyDataSetChanged")
-    fun updateImages(newImages: List<Pair<Bitmap, Bitmap?>>) {
-        images.clear()
-        images.addAll(newImages)
+    fun updateImages(newResults: List<AnalysisResult>) {
+        results.clear()
+        results.addAll(newResults)
         notifyDataSetChanged()
     }
 }

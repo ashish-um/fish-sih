@@ -117,10 +117,10 @@ class Detector(
     }
 
     fun detect(frame: Bitmap) {
-        if (tensorWidth == 0) return
-        if (tensorHeight == 0) return
-        if (numChannel == 0) return
-        if (numElements == 0) return
+        if (tensorWidth == 0 || tensorHeight == 0 || numChannel == 0 || numElements == 0) {
+            detectorListener.onEmptyDetect()
+            return
+        }
 
         var inferenceTime = SystemClock.uptimeMillis()
 

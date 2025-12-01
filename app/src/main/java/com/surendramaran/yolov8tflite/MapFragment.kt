@@ -2,10 +2,16 @@ package com.surendramaran.yolov8tflite
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
+import android.graphics.Rect
 import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.preference.PreferenceManager
 import android.util.Log
@@ -89,8 +95,6 @@ class MapFragment : Fragment() {
         }
 
         loadOfflineLayers()
-
-        // NEW: Load saved detections onto the map
         loadSavedDetections()
 
         view.findViewById<View>(R.id.btn_center_map)?.setOnClickListener {
@@ -105,27 +109,42 @@ class MapFragment : Fragment() {
     }
 
     private fun loadSavedDetections() {
-        val detections = dbHelper.getAllDetections()
-        val detectionIcon = createSmallDot(Color.RED, 50) // Red dots for catches
+        // FILTER: Get only TYPE_DETECTION (Classification) logs
+        val detections = dbHelper.getHistoryByType(DatabaseHelper.TYPE_DETECTION)
+        val defaultIcon = createSmallDot(Color.RED, 50)
 
         detections.forEach { item ->
             if (item.lat != 0.0 && item.lng != 0.0) {
                 val marker = Marker(map)
                 marker.position = GeoPoint(item.lat, item.lng)
-                marker.icon = detectionIcon
                 marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                marker.title = "Catch: ${item.fishCount}"
+
+                marker.title = "Catch: ${item.title}"
                 marker.subDescription = "Date: ${Date(item.timestamp)}"
 
-                // UPDATED: Load image if available to show in the info window
-                if (item.imagePath.isNotEmpty()) {
+                // 1. Get image path
+                val firstPath = item.imagePath.split("|").firstOrNull() ?: ""
+
+                // 2. Create circular marker
+                var customIcon: Drawable? = null
+                if (firstPath.isNotEmpty()) {
+                    customIcon = createCircularMarker(firstPath)
+                }
+
+                // 3. Set icon
+                if (customIcon != null) {
+                    marker.icon = customIcon
+                } else {
+                    marker.icon = defaultIcon
+                }
+
+                // 4. Set Image for InfoWindow
+                if (firstPath.isNotEmpty()) {
                     try {
-                        val imgFile = File(item.imagePath)
+                        val imgFile = File(firstPath)
                         if (imgFile.exists()) {
-                            // Decode file to bitmap
                             val bitmap = BitmapFactory.decodeFile(imgFile.absolutePath)
                             if (bitmap != null) {
-                                // Set the image property of the marker which osmdroid uses in the info window
                                 marker.image = BitmapDrawable(resources, bitmap)
                             }
                         }
@@ -138,6 +157,65 @@ class MapFragment : Fragment() {
             }
         }
         map.invalidate()
+    }
+
+    private fun createCircularMarker(path: String): Drawable? {
+        try {
+            val file = File(path)
+            if (!file.exists()) return null
+
+            val options = BitmapFactory.Options()
+            options.inJustDecodeBounds = true
+            BitmapFactory.decodeFile(path, options)
+
+            val targetSize = 120
+            var scale = 1
+            while (options.outWidth / scale / 2 >= targetSize && options.outHeight / scale / 2 >= targetSize) {
+                scale *= 2
+            }
+
+            val loadOptions = BitmapFactory.Options()
+            loadOptions.inSampleSize = scale
+            val srcBitmap = BitmapFactory.decodeFile(path, loadOptions) ?: return null
+
+            val output = Bitmap.createBitmap(targetSize, targetSize, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(output)
+
+            val paint = Paint()
+            val rect = Rect(0, 0, targetSize, targetSize)
+
+            paint.isAntiAlias = true
+            paint.isFilterBitmap = true
+            paint.isDither = true
+
+            canvas.drawARGB(0, 0, 0, 0)
+
+            paint.color = Color.parseColor("#BAB399")
+            canvas.drawCircle(targetSize / 2f, targetSize / 2f, targetSize / 2f, paint)
+
+            paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+            val srcRect: Rect
+            if (srcBitmap.width > srcBitmap.height) {
+                val left = (srcBitmap.width - srcBitmap.height) / 2
+                srcRect = Rect(left, 0, left + srcBitmap.height, srcBitmap.height)
+            } else {
+                val top = (srcBitmap.height - srcBitmap.width) / 2
+                srcRect = Rect(0, top, srcBitmap.width, top + srcBitmap.width)
+            }
+            canvas.drawBitmap(srcBitmap, srcRect, rect, paint)
+
+            paint.xfermode = null
+            paint.style = Paint.Style.STROKE
+            paint.color = Color.WHITE
+            paint.strokeWidth = 8f
+            canvas.drawCircle(targetSize / 2f, targetSize / 2f, (targetSize / 2f) - 4f, paint)
+
+            return BitmapDrawable(resources, output)
+
+        } catch (e: Exception) {
+            Log.e("MapFragment", "Failed to create circular marker", e)
+            return null
+        }
     }
 
     private fun checkLocationPermission(): Boolean {
@@ -311,7 +389,6 @@ class MapFragment : Fragment() {
         super.onResume()
         map.onResume()
         locationOverlay?.enableMyLocation()
-        // Reload points so new detections appear immediately
         loadSavedDetections()
     }
 

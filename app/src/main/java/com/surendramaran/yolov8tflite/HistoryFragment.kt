@@ -6,19 +6,19 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.core.os.bundleOf
-import androidx.core.view.doOnPreDraw
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.FragmentNavigatorExtras
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.chip.ChipGroup
 
 class HistoryFragment : Fragment() {
 
     private lateinit var dbHelper: DatabaseHelper
     private lateinit var recyclerView: RecyclerView
     private lateinit var emptyText: TextView
-    private var isViewJustCreated = false
+    private var currentType = DatabaseHelper.TYPE_DETECTION
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -30,40 +30,38 @@ class HistoryFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Postpone transition for the shared element animation
-        postponeEnterTransition()
-
         dbHelper = DatabaseHelper(requireContext())
         recyclerView = view.findViewById(R.id.historyRecyclerView)
         emptyText = view.findViewById(R.id.emptyStateText)
+        val chipGroup = view.findViewById<ChipGroup>(R.id.historyFilterChips)
 
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
 
-        // FIXED: Load history immediately here to avoid deadlock.
-        // postponing requires startPostponedEnterTransition to be called,
-        // which happens inside loadHistory -> waitForTransition.
-        loadHistory()
-        isViewJustCreated = true
-    }
-
-    override fun onResume() {
-        super.onResume()
-        // Reload history only if we didn't just load it in onViewCreated.
-        // This ensures the list is fresh when returning to this tab.
-        if (!isViewJustCreated) {
+        chipGroup.setOnCheckedChangeListener { _, checkedId ->
+            currentType = when (checkedId) {
+                R.id.chipDetection -> DatabaseHelper.TYPE_DETECTION
+                R.id.chipFreshness -> DatabaseHelper.TYPE_FRESHNESS
+                R.id.chipVolume -> DatabaseHelper.TYPE_VOLUME
+                else -> DatabaseHelper.TYPE_DETECTION
+            }
             loadHistory()
         }
-        isViewJustCreated = false
+
+        // Initial load
+        loadHistory()
     }
 
     private fun loadHistory() {
-        val data = dbHelper.getAllDetections()
+        val data = dbHelper.getHistoryByType(currentType)
 
         if (data.isEmpty()) {
+            emptyText.text = when(currentType) {
+                DatabaseHelper.TYPE_FRESHNESS -> "No Freshness Logs"
+                DatabaseHelper.TYPE_VOLUME -> "No Volume Logs"
+                else -> "No Detections Found"
+            }
             emptyText.visibility = View.VISIBLE
             recyclerView.visibility = View.GONE
-            // Important: Must start transition even if empty
-            startPostponedEnterTransition()
         } else {
             emptyText.visibility = View.GONE
             recyclerView.visibility = View.VISIBLE
@@ -72,7 +70,7 @@ class HistoryFragment : Fragment() {
                 val bundle = bundleOf(
                     "imagePath" to item.imagePath,
                     "timestamp" to item.timestamp,
-                    "fishCount" to item.fishCount,
+                    "fishCount" to item.title, // Passed as 'fishCount' key for compatibility
                     "details" to item.details,
                     "placeName" to item.placeName,
                     "lat" to item.lat,
@@ -90,16 +88,7 @@ class HistoryFragment : Fragment() {
                     extras
                 )
             }
-
             recyclerView.adapter = adapter
-            waitForTransition()
-        }
-    }
-
-    private fun waitForTransition() {
-        // Wait for RecyclerView to lay out items before starting the transition
-        recyclerView.doOnPreDraw {
-            startPostponedEnterTransition()
         }
     }
 }

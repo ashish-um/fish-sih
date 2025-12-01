@@ -37,18 +37,23 @@ class HistoryAdapter(
         val sdf = SimpleDateFormat("MMM dd, yyyy • hh:mm a", Locale.getDefault())
         holder.date.text = sdf.format(Date(item.timestamp))
 
-        // UPDATED: Show ONLY Latitude and Longitude
         holder.location.text = String.format("Lat: %.4f, Lng: %.4f", item.lat, item.lng)
         holder.location.visibility = View.VISIBLE
 
-        holder.counts.text = item.fishCount
+        holder.counts.text = item.title
         holder.details.text = item.details
 
-        val imgFile = File(item.imagePath)
+        // FIX: Handle multiple paths separated by "|"
+        // If it's a volume log, paths are like "path1.jpg|path2.jpg"
+        // We just take the first one for the thumbnail.
+        val firstPath = item.imagePath.split("|").firstOrNull() ?: ""
+
+        val imgFile = File(firstPath)
         if (imgFile.exists()) {
             val bitmap = BitmapFactory.decodeFile(imgFile.absolutePath)
             holder.image.setImageBitmap(bitmap)
         } else {
+            // Fallback placeholder
             holder.image.setImageResource(android.R.drawable.ic_menu_gallery)
         }
 

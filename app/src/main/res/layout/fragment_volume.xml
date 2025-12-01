@@ -29,6 +29,18 @@
             android:layout_height="wrap_content"
             android:src="@drawable/ic_settings"/>
 
+        <ProgressBar
+            android:id="@+id/pbLoading"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
+            android:elevation="10dp"
+            android:indeterminateTint="@color/purple_500"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+
         <TextView
             android:id="@+id/tvNoFish"
             android:layout_width="wrap_content"

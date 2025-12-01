@@ -6,4 +6,5 @@ class SettingsViewModel : ViewModel() {
     var isSeparateOutChecked = true
     var isSmoothEdges = false
     var isMaskOutChecked = false
+    var useCoinReference = true
 }

@@ -1,16 +1,14 @@
 package com.surendramaran.yolov8tflite.segmentation
+
 import kotlin.math.exp
 
 object ImageUtils {
     fun Array<IntArray>.scaleMask(targetWidth: Int, targetHeight: Int): Array<IntArray> {
         val originalHeight = this.size
         val originalWidth = this[0].size
-
         val xRatio = originalWidth.toDouble() / targetWidth
         val yRatio = originalHeight.toDouble() / targetHeight
-
         val output = Array(targetHeight) { IntArray(targetWidth) }
-
         for (y in 0 until targetHeight) {
             for (x in 0 until targetWidth) {
                 val origX = (x * xRatio).toInt()
@@ -18,7 +16,6 @@ object ImageUtils {
                 output[y][x] = this[origY][origX]
             }
         }
-
         return output
     }
 
@@ -30,9 +27,7 @@ object ImageUtils {
         }
     }
 
-
     fun Array<IntArray>.smooth(kernel: Int) : Array<IntArray> {
-        // Using Array because it is faster then List
         val maskFloat = Array(this.size) { i ->
             FloatArray(this[i].size) { j ->
                 if (this[i][j] > 0) 1F else 0F
@@ -48,7 +43,6 @@ object ImageUtils {
         val kernel = Array(size) { FloatArray(size) }
         val mean = size / 2
         var sum = 0F
-
         for (x in 0 until size) {
             for (y in 0 until size) {
                 kernel[x][y] = (1F / (2F * Math.PI.toFloat() * sigma * sigma)) * exp(
@@ -57,13 +51,11 @@ object ImageUtils {
                 sum += kernel[x][y]
             }
         }
-
         for (x in 0 until size) {
             for (y in 0 until size) {
                 kernel[x][y] /= sum
             }
         }
-
         return kernel
     }
 
@@ -73,7 +65,6 @@ object ImageUtils {
         val kernelSize = kernel.size
         val offset = kernelSize / 2
         val blurredImage = Array(height) { FloatArray(width) { 0F } }
-
         for (i in offset until height - offset) {
             for (j in offset until width - offset) {
                 var sum = 0F
@@ -86,7 +77,6 @@ object ImageUtils {
                 blurredImage[i][j] = sum
             }
         }
-
         return blurredImage
     }
 

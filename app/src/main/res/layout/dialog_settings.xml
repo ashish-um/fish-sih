@@ -32,6 +32,13 @@
                     android:text="@string/smooth_edges"
                     android:textSize="12sp"/>
 
+            <com.google.android.material.checkbox.MaterialCheckBox
+                android:id="@+id/cbCoinReference"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Use 10 ₹ Coin Reference"
+                android:textSize="12sp"      />
+
                 <LinearLayout
                     android:id="@+id/llPatreon"
                     android:layout_width="match_parent"

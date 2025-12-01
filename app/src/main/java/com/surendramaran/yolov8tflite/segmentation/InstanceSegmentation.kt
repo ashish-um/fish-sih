@@ -23,6 +23,7 @@ class InstanceSegmentation(
     context: Context,
     modelPath: String,
     labelPath: String?,
+    private val modelType: String = "Fish", // "Fish" or "Coin"
     private val smoothnessKernel: Int = 5,
     private val message: (String) -> Unit
 ) {
@@ -51,12 +52,15 @@ class InstanceSegmentation(
 
         labels.addAll(extractNamesFromMetadata(model))
 
-        // FIX: Handle missing metadata for custom single-class models
+        // Fallback if labels are missing in the model file
         if (labels.isEmpty()) {
             if (labelPath == null) {
-                // REMOVED: message("Model not contains metadata...")
-                // ADDED: Default to "Fish" since we know it's a single-class model
-                labels.add("Fish")
+                // Use the modelType to determine the default label
+                if (modelType == "Coin") {
+                    labels.add("Reference")
+                } else {
+                    labels.add("Fish")
+                }
             } else {
                 labels.addAll(extractNamesFromLabelFile(context, labelPath))
             }
@@ -98,9 +102,7 @@ class InstanceSegmentation(
     }
 
     fun invoke(frame: Bitmap, smoothEdges: Boolean, onSuccess: (Success) -> Unit, onFailure: (String) -> Unit ) {
-        if (tensorWidth == 0 || tensorHeight == 0
-            || numChannel == 0 || numElements == 0
-            || xPoints == 0 || yPoints == 0 || masksNum == 0) {
+        if (tensorWidth == 0 || tensorHeight == 0 || numChannel == 0 || numElements == 0 || masksNum == 0) {
             onFailure("Interpreter not initialized properly")
             return
         }
@@ -137,14 +139,7 @@ class InstanceSegmentation(
         val bestBoxes = bestBox(coordinatesBuffer.floatArray)
 
         if (bestBoxes == null) {
-            // FIX: Don't fail hard, just return empty success so UI doesn't break
-            // You can also use onFailure("No object detected") if you prefer
-            onSuccess(Success(
-                preProcessTime = preProcessTime,
-                interfaceTime = interfaceTime,
-                postProcessTime = SystemClock.uptimeMillis() - postProcessTime,
-                results = emptyList()
-            ))
+            onSuccess(Success(preProcessTime, interfaceTime, SystemClock.uptimeMillis() - postProcessTime, emptyList()))
             return
         }
 
@@ -211,7 +206,6 @@ class InstanceSegmentation(
     }
 
     private fun bestBox(array: FloatArray) : List<Output0>? {
-
         val output0List = mutableListOf<Output0>()
 
         for (c in 0 until numElements) {
@@ -230,7 +224,7 @@ class InstanceSegmentation(
             }
 
             if (maxConf > CONFIDENCE_THRESHOLD) {
-                val clsName = if (maxIdx < labels.size) labels[maxIdx] else "Unknown"
+                val clsName = if (maxIdx < labels.size) labels[maxIdx] else labels.lastOrNull() ?: "Unknown"
                 val cx = array[c]
                 val cy = array[c + numElements]
                 val w = array[c + numElements * 2]
@@ -263,7 +257,6 @@ class InstanceSegmentation(
         }
 
         if (output0List.isEmpty()) return null
-
         return applyNMS(output0List)
     }
 
@@ -285,18 +278,14 @@ class InstanceSegmentation(
                 }
             }
         }
-
         return selectedBoxes
     }
 
     private fun calculateIoU(box1: Output0, box2: Output0): Float {
-        val x1 = maxOf(box1.x1, box2.x1)
-        val y1 = maxOf(box1.y1, box2.y1)
-        val x2 = minOf(box1.x2, box2.x2)
-        val y2 = minOf(box1.y2, box2.y2)
+        val x1 = maxOf(box1.x1, box2.x1); val y1 = maxOf(box1.y1, box2.y1)
+        val x2 = minOf(box1.x2, box2.x2); val y2 = minOf(box1.y2, box2.y2)
         val intersectionArea = maxOf(0F, x2 - x1) * maxOf(0F, y2 - y1)
-        val box1Area = box1.w * box1.h
-        val box2Area = box2.w * box2.h
+        val box1Area = box1.w * box1.h; val box2Area = box2.w * box2.h
         return intersectionArea / (box1Area + box2Area - intersectionArea)
     }
 
@@ -313,7 +302,7 @@ class InstanceSegmentation(
         private const val INPUT_STANDARD_DEVIATION = 255f
         private val INPUT_IMAGE_TYPE = DataType.FLOAT32
         private val OUTPUT_IMAGE_TYPE = DataType.FLOAT32
-        private const val CONFIDENCE_THRESHOLD = 0.2F
+        private const val CONFIDENCE_THRESHOLD = 0.3F
         private const val IOU_THRESHOLD = 0.5F
     }
 }

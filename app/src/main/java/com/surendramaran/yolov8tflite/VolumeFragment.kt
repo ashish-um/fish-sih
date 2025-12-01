@@ -1,5 +1,6 @@
 package com.surendramaran.yolov8tflite
 
+// ... imports remain same ...
 import android.Manifest
 import android.app.Activity
 import android.app.Dialog
@@ -31,6 +32,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
+import com.surendramaran.yolov8tflite.Constants.COIN_MODEL_PATH
 import com.surendramaran.yolov8tflite.Constants.LABELS_PATH
 import com.surendramaran.yolov8tflite.Constants.MODEL_PATH
 import com.surendramaran.yolov8tflite.Constants.SEG_MODEL_PATH
@@ -39,10 +41,10 @@ import com.surendramaran.yolov8tflite.databinding.FragmentVolumeBinding
 import com.surendramaran.yolov8tflite.segmentation.AnalysisResult
 import com.surendramaran.yolov8tflite.segmentation.DrawImages
 import com.surendramaran.yolov8tflite.segmentation.InstanceSegmentation
+import com.surendramaran.yolov8tflite.segmentation.SegmentationResult
 import com.surendramaran.yolov8tflite.segmentation.Success
 import com.surendramaran.yolov8tflite.segmentation.ui.SettingsViewModel
 import com.surendramaran.yolov8tflite.segmentation.ui.ViewPagerAdapter
-import com.surendramaran.yolov8tflite.segmentation.utils.OrientationLiveData
 import com.surendramaran.yolov8tflite.segmentation.utils.Utils
 import com.surendramaran.yolov8tflite.segmentation.utils.Utils.addCarouselEffect
 import com.yalantis.ucrop.UCrop
@@ -63,14 +65,17 @@ import java.util.Locale
 import java.util.concurrent.TimeUnit
 import kotlin.math.sqrt
 import kotlin.math.pow
+import kotlin.math.max
 
 class VolumeFragment : Fragment(), Detector.DetectorListener {
+    // ... binding and vars ...
     private var _binding: FragmentVolumeBinding? = null
     private val binding get() = _binding!!
 
     private val viewModel: SettingsViewModel by activityViewModels()
 
-    private var instanceSegmentation: InstanceSegmentation? = null
+    private var instanceSegmentation: InstanceSegmentation? = null // Fish Model
+    private var coinSegmentation: InstanceSegmentation? = null     // Coin Model
     private var detector: Detector? = null
     private lateinit var dbHelper: DatabaseHelper
     private lateinit var drawImages: DrawImages
@@ -85,16 +90,26 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
     private var lastAnalysisResult: List<AnalysisResult>? = null
     private var currentPhotoUri: Uri? = null
 
+    // ... cropImage and photoPicker remain same ...
     private val cropImage = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
             val resultUri = UCrop.getOutput(result.data!!)
             resultUri?.let { uri ->
                 val bitmap = Utils.getBitmapFromUri(requireContext(), uri) ?: return@let
-                val (markedBitmap, scale, found) = detectArUcoMarkers(bitmap)
-                currentBitmap = markedBitmap
-                currentScale = scale
-                isMarkerDetected = found
-                detector?.detect(markedBitmap)
+
+                currentBitmap = bitmap
+                currentScale = 50.0f
+                isMarkerDetected = false
+
+                if (viewModel.useCoinReference) {
+                    detector?.detect(bitmap) // Starts chain
+                } else {
+                    val (markedBitmap, scale, found) = detectArUcoMarkers(bitmap)
+                    currentBitmap = markedBitmap
+                    currentScale = scale
+                    isMarkerDetected = found
+                    detector?.detect(markedBitmap)
+                }
             }
         } else if (result.resultCode == UCrop.RESULT_ERROR) {
             val error = UCrop.getError(result.data!!)
@@ -125,13 +140,31 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
         dbHelper = DatabaseHelper(requireContext())
         OpenCVLoader.initDebug()
 
-        instanceSegmentation = InstanceSegmentation(requireContext(), SEG_MODEL_PATH, null, 5) { toast(it) }
+        // 1. Initialize Fish Seg Model (Type "Fish")
+        instanceSegmentation = InstanceSegmentation(
+            requireContext(),
+            SEG_MODEL_PATH,
+            null,
+            "Fish", // <--- Model Type
+            5
+        ) { toast("Fish Error: $it") }
+
+        // 2. Initialize Coin Seg Model (Type "Coin")
+        coinSegmentation = InstanceSegmentation(
+            requireContext(),
+            COIN_MODEL_PATH,
+            null,
+            "Coin", // <--- Model Type
+            5
+        ) { toast("Coin Error: $it") }
+
         detector = Detector(requireContext(), MODEL_PATH, LABELS_PATH, this)
         drawImages = DrawImages(requireContext())
 
         setupListeners()
     }
 
+    // ... setupListeners, detectArUcoMarkers, startCrop remain same ...
     private fun setupListeners() {
         binding.btnCamera.setOnClickListener {
             val photoFile = Utils.createImageFile(requireContext())
@@ -199,27 +232,74 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
         cropImage.launch(UCrop.of(sourceUri, Uri.fromFile(destFile)).withOptions(options).getIntent(requireContext()))
     }
 
-    private fun runInstanceSegmentation(bitmap: Bitmap, speciesBoxes: List<BoundingBox>, scale: Float) {
+    private fun runInstanceSegmentation(bitmap: Bitmap, speciesBoxes: List<BoundingBox>, defaultScale: Float) {
+        requireActivity().runOnUiThread {
+            binding.pbLoading.visibility = View.VISIBLE
+            binding.tvNoFish.visibility = View.GONE
+            binding.btnSave.visibility = View.GONE
+            viewPagerAdapter.updateImages(emptyList())
+        }
+
         lifecycleScope.launch(Dispatchers.Default) {
             segmentationMutex.withLock {
-                if (instanceSegmentation != null) {
-                    instanceSegmentation?.invoke(
-                        frame = bitmap,
-                        smoothEdges = viewModel.isSmoothEdges,
-                        onSuccess = { processSuccessResult(bitmap, it, speciesBoxes, scale) },
-                        onFailure = { clearOutput(it) }
-                    )
+                var coinResults: List<SegmentationResult> = emptyList()
+                var activeScale = defaultScale
+                var fishSuccess: Success? = null
+
+                if (viewModel.useCoinReference && coinSegmentation != null) {
+                    try {
+                        coinSegmentation?.invoke(
+                            frame = bitmap,
+                            smoothEdges = false,
+                            onSuccess = { success ->
+                                coinResults = success.results
+                                if (coinResults.isNotEmpty()) {
+                                    val coinBox = coinResults.first().box
+                                    // 10 Rupee Coin = 27mm = 2.7cm
+                                    val widthPx = coinBox.w * bitmap.width
+                                    val heightPx = coinBox.h * bitmap.height
+                                    val diameterPx = max(widthPx, heightPx)
+
+                                    activeScale = diameterPx / 2.7f
+                                    isMarkerDetected = true
+                                }
+                            },
+                            onFailure = { Log.e("VolFrag", "Coin model failed: $it") }
+                        )
+                    } catch (e: Exception) { Log.e("VolFrag", "Coin model crashed", e) }
                 }
+
+                if (instanceSegmentation != null) {
+                    try {
+                        instanceSegmentation?.invoke(
+                            frame = bitmap,
+                            smoothEdges = viewModel.isSmoothEdges,
+                            onSuccess = { success -> fishSuccess = success },
+                            onFailure = { Log.e("VolFrag", "Fish model failed: $it") }
+                        )
+                    } catch (e: Exception) { Log.e("VolFrag", "Fish model crashed", e) }
+                }
+
+                val finalFishSuccess = fishSuccess ?: Success(0, 0, 0, emptyList())
+                finalizeAndDraw(bitmap, finalFishSuccess, coinResults, speciesBoxes, activeScale)
             }
         }
     }
 
-    private fun processSuccessResult(original: Bitmap, success: Success, speciesBoxes: List<BoundingBox>, scale: Float) {
+    private fun finalizeAndDraw(
+        original: Bitmap,
+        fishSuccess: Success,
+        coinResults: List<SegmentationResult>,
+        speciesBoxes: List<BoundingBox>,
+        scale: Float
+    ) {
         requireActivity().runOnUiThread {
-            binding.tvInferenceTime.text = "Inference: ${success.interfaceTime}ms"
+            binding.pbLoading.visibility = View.GONE
+            binding.tvInferenceTime.text = "Inference: ${fishSuccess.interfaceTime}ms"
 
-            if (success.results.isEmpty()) {
+            if (fishSuccess.results.isEmpty() && coinResults.isEmpty()) {
                 binding.tvNoFish.visibility = View.VISIBLE
+                binding.tvNoFish.text = "No Fish or Coin Detected"
                 binding.btnSave.visibility = View.GONE
                 viewPagerAdapter.updateImages(emptyList())
                 lastAnalysisResult = null
@@ -229,7 +309,8 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
 
                 val analysisResults = drawImages.invoke(
                     original = original,
-                    success = success,
+                    success = fishSuccess,
+                    coinResults = coinResults,
                     isSeparateOut = viewModel.isSeparateOutChecked,
                     isMaskOut = viewModel.isMaskOutChecked,
                     speciesBoxes = speciesBoxes,
@@ -241,6 +322,8 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
             }
         }
     }
+
+    // ... [saveVolumeLog, saveToDb, triggerBackgroundSync, showSettingsDialog, toast, callbacks remain same] ...
 
     private fun saveVolumeLog() {
         val bitmapsToSave = if (!lastAnalysisResult.isNullOrEmpty()) {
@@ -311,25 +394,18 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
 
             dbHelper.insertLog(System.currentTimeMillis(), imagePath, title, details, currentLat, currentLng, placeName, DatabaseHelper.TYPE_VOLUME)
             toast("Volume Log Saved!")
-
-            // TRIGGER SYNC
             triggerBackgroundSync()
-
         } catch (e: Exception) { toast("Error saving: ${e.message}") }
     }
 
-    // Helper to trigger sync immediately after save
     private fun triggerBackgroundSync() {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
-
         val syncRequest = OneTimeWorkRequest.Builder(SyncWorker::class.java)
             .setConstraints(constraints)
             .setBackoffCriteria(BackoffPolicy.LINEAR, 10, TimeUnit.SECONDS)
             .build()
-
-        // Append ensures it runs after any currently running sync
         WorkManager.getInstance(requireContext()).enqueueUniqueWork(
             "HistoryUploadWork",
             ExistingWorkPolicy.APPEND,
@@ -337,17 +413,7 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
         )
     }
 
-    private fun clearOutput(error: String) {
-        requireActivity().runOnUiThread {
-            binding.tvInferenceTime.text = "--"
-            binding.tvNoFish.visibility = View.GONE
-            binding.btnSave.visibility = View.GONE
-            viewPagerAdapter.updateImages(emptyList())
-            toast(error)
-        }
-    }
-
-    private fun showSettingsDialog() { /* ... existing ... */
+    private fun showSettingsDialog() {
         val dialog = Dialog(requireContext())
         val dialogBinding = DialogSettingsBinding.inflate(layoutInflater)
         dialog.setContentView(dialogBinding.root)
@@ -356,9 +422,18 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
             cbSeparateOut.isChecked = viewModel.isSeparateOutChecked
             cbMaskOut.isChecked = viewModel.isMaskOutChecked
             cbSmoothEdges.isChecked = viewModel.isSmoothEdges
+            cbCoinReference.isChecked = viewModel.useCoinReference
+
             cbSeparateOut.setOnCheckedChangeListener { _, isChecked -> viewModel.isSeparateOutChecked = isChecked }
             cbMaskOut.setOnCheckedChangeListener { _, isChecked -> viewModel.isMaskOutChecked = isChecked }
             cbSmoothEdges.setOnCheckedChangeListener { _, isChecked -> viewModel.isSmoothEdges = isChecked }
+
+            cbCoinReference.setOnCheckedChangeListener { _, isChecked ->
+                viewModel.useCoinReference = isChecked
+                if (currentBitmap != null && isChecked) {
+                    detector?.detect(currentBitmap!!)
+                }
+            }
         }
         dialog.show()
     }
@@ -380,13 +455,16 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
     override fun onDestroyView() {
         super.onDestroyView()
         val seg = instanceSegmentation
+        val coinSeg = coinSegmentation
         val det = detector
         _binding = null
         instanceSegmentation = null
+        coinSegmentation = null
         detector = null
         lifecycleScope.launch(Dispatchers.IO) {
             segmentationMutex.withLock {
                 seg?.close()
+                coinSeg?.close()
                 det?.close()
             }
         }

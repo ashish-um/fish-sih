@@ -5,17 +5,10 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.Path
 import android.graphics.RectF
 import androidx.core.content.ContextCompat
 import com.surendramaran.yolov8tflite.BoundingBox
 import com.surendramaran.yolov8tflite.R
-import org.opencv.core.CvType
-import org.opencv.core.Mat
-import org.opencv.core.MatOfPoint
-import org.opencv.core.MatOfPoint2f
-import org.opencv.core.Point
-import org.opencv.imgproc.Imgproc
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -51,95 +44,108 @@ class DrawImages(private val context: Context) {
     fun invoke(
         original: Bitmap,
         success: Success,
+        coinResults: List<SegmentationResult>,
         isSeparateOut: Boolean,
         isMaskOut: Boolean,
         speciesBoxes: List<BoundingBox>,
         pixelsPerCm: Float,
-        isMarkerDetected: Boolean // <--- NEW PARAMETER
+        isMarkerDetected: Boolean
     ) : List<AnalysisResult> {
 
-        // CASE 1: SEPARATE OUT
+        val width = original.width
+        val height = original.height
+
+        // 1. CAROUSEL MODE (Separate View)
         if (isSeparateOut) {
-            if (isMaskOut) {
-                return success.results.map {
-                    AnalysisResult(maskOut(original, it.mask), null, "Mask Only")
-                }
-            } else {
-                val results = success.results
-                if (results.isEmpty()) return emptyList()
+            val outputList = mutableListOf<AnalysisResult>()
+            val theCoin = coinResults.firstOrNull() // Assume 1 coin as per instructions
 
-                val width = results.first().mask[0].size
-                val height = results.first().mask.size
-
-                return success.results.map {
-                    val new = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                    val infoText = applyTransparentOverlay(
-                        context, new, it, R.color.overlay_pink,
-                        speciesBoxes, pixelsPerCm, isMarkerDetected
-                    )
-                    AnalysisResult(original, new, infoText)
-                }
-            }
-        }
-        // CASE 2: COMBINED VIEW
-        else {
-            if (isMaskOut) {
-                val list = success.results.map { it.mask }.toTypedArray()
-                return listOf(AnalysisResult(maskOut(original, list.combineMasks()), null, "Combined Masks"))
-            } else {
-                val results = success.results
-                if (results.isEmpty()) return emptyList()
-
+            // A. If Fish Found -> Create one slide per Fish (with Coin as reference)
+            if (success.results.isNotEmpty()) {
                 val colorPairs: MutableMap<Int, Int> = mutableMapOf()
-                results.forEach { colorPairs[it.box.cls] = getNextColor() }
+                success.results.forEach { colorPairs[it.box.cls] = getNextColor() }
 
-                val width = results.first().mask[0].size
-                val height = results.first().mask.size
-                val combined = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                success.results.forEachIndexed { index, fishResult ->
+                    val overlay = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                    val sb = StringBuilder()
 
-                val allDescriptions = StringBuilder()
-                results.forEachIndexed { index, result ->
-                    val text = applyTransparentOverlay(
-                        context, combined, result,
-                        colorPairs[result.box.cls] ?: R.color.primary,
-                        speciesBoxes, pixelsPerCm, isMarkerDetected
-                    )
-                    if (text.isNotEmpty()) {
-                        allDescriptions.append("Fish ${index + 1}:\n$text\n\n")
+                    // Draw Coin (Reference) if exists
+                    if (theCoin != null) {
+                        val coinDesc = applyTransparentOverlay(
+                            context, overlay, theCoin,
+                            R.color.white,
+                            emptyList(),
+                            pixelsPerCm,
+                            isCoin = true
+                        )
+                        sb.append("Reference (Coin):\n$coinDesc\n\n")
                     }
-                }
-                return listOf(AnalysisResult(original, combined, allDescriptions.toString().trim()))
-            }
-        }
-    }
 
-    private fun maskOut(image: Bitmap, mask: Array<IntArray>) : Bitmap {
-        if (image.height != mask.size || image.width != mask[0].size) {
-            throw IllegalArgumentException("Mask dimensions must match image dimensions")
-        }
-        val result = Bitmap.createBitmap(image.width, image.height, image.config)
-        for (y in 0 until image.height) {
-            for (x in 0 until image.width) {
-                val pixel = image.getPixel(x, y)
-                result.setPixel(x, y, if (mask[y][x] == 1) pixel else Color.BLACK)
-            }
-        }
-        return result
-    }
+                    // Draw Target Fish
+                    val fishDesc = applyTransparentOverlay(
+                        context, overlay, fishResult,
+                        colorPairs[fishResult.box.cls] ?: R.color.primary,
+                        speciesBoxes,
+                        pixelsPerCm,
+                        isCoin = false
+                    )
+                    sb.append("Fish ${index + 1}:\n$fishDesc")
 
-    private fun Array<Array<IntArray>>.combineMasks(): Array<IntArray> {
-        if (this.isEmpty() || this.first().isEmpty()) return emptyArray()
-        val h = size; val w = first().first().size
-        val result = Array(h) { IntArray(w) }
-        for (mask in this) {
-            if (mask.size != h || mask[0].size != w) continue
-            for (y in 0 until h) {
-                for (x in 0 until w) {
-                    if (mask[y][x] > 0) result[y][x] = 1
+                    outputList.add(AnalysisResult(original, overlay, sb.toString()))
                 }
             }
+            // B. No Fish? Just show Coin slide (if coin exists)
+            else if (theCoin != null) {
+                val overlay = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                val coinDesc = applyTransparentOverlay(
+                    context, overlay, theCoin,
+                    R.color.white,
+                    emptyList(),
+                    pixelsPerCm,
+                    isCoin = true
+                )
+                outputList.add(AnalysisResult(original, overlay, "Reference Only:\n$coinDesc"))
+            }
+
+            return outputList
         }
-        return result
+
+        // 2. COMBINED MODE (One image, all objects)
+        else {
+            if (success.results.isEmpty() && coinResults.isEmpty()) return emptyList()
+
+            val combined = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val sb = StringBuilder()
+
+            // Draw Coin
+            coinResults.forEach { result ->
+                val desc = applyTransparentOverlay(
+                    context, combined, result,
+                    R.color.white,
+                    emptyList(),
+                    pixelsPerCm,
+                    isCoin = true
+                )
+                sb.append("Reference:\n$desc\n\n")
+            }
+
+            // Draw Fish
+            val colorPairs: MutableMap<Int, Int> = mutableMapOf()
+            success.results.forEach { colorPairs[it.box.cls] = getNextColor() }
+
+            success.results.forEachIndexed { index, result ->
+                val desc = applyTransparentOverlay(
+                    context, combined, result,
+                    colorPairs[result.box.cls] ?: R.color.primary,
+                    speciesBoxes,
+                    pixelsPerCm,
+                    isCoin = false
+                )
+                sb.append("Fish ${index + 1}:\n$desc\n\n")
+            }
+
+            return listOf(AnalysisResult(original, combined, sb.toString()))
+        }
     }
 
     private fun applyTransparentOverlay(
@@ -149,140 +155,112 @@ class DrawImages(private val context: Context) {
         overlayColorResId: Int,
         speciesBoxes: List<BoundingBox>,
         pixelsPerCm: Float,
-        isMarkerDetected: Boolean
+        isCoin: Boolean
     ): String {
-        var detectedInfo = ""
         val width = overlay.width
         val height = overlay.height
         val overlayColor = ContextCompat.getColor(context, overlayColorResId)
-        val maskData = ByteArray(width * height)
 
+        // Pixel Painting
         for (y in 0 until height) {
             for (x in 0 until width) {
-                val maskValue = segmentationResult.mask[y][x]
-                if (maskValue > 0) {
+                if (segmentationResult.mask[y][x] > 0) {
                     overlay.setPixel(x, y, applyTransparentOverlayColor(overlayColor))
-                    maskData[y * width + x] = 255.toByte()
-                } else {
-                    maskData[y * width + x] = 0
                 }
             }
         }
 
-        try {
-            val maskMat = Mat(height, width, CvType.CV_8UC1)
-            maskMat.put(0, 0, maskData)
-            val contours = ArrayList<MatOfPoint>()
-            Imgproc.findContours(maskMat, contours, Mat(), Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE)
-
-            val canvas = Canvas(overlay)
-            val paintBox = Paint().apply {
-                color = Color.WHITE
-                style = Paint.Style.STROKE
-                strokeWidth = 3f
-                isAntiAlias = true
-            }
-
-            val paintText = Paint().apply {
-                color = Color.WHITE
-                textSize = 28f
-                style = Paint.Style.FILL
-                isAntiAlias = true
-                setShadowLayer(3f, 0f, 0f, Color.BLACK)
-            }
-
-            // Paint for WARNING text on image
-            val paintWarning = Paint().apply {
-                color = Color.RED
-                textSize = 36f
-                style = Paint.Style.FILL
-                isAntiAlias = true
-                setShadowLayer(3f, 0f, 0f, Color.WHITE)
-            }
-
-            // Draw Warning on Canvas if missing (Once per image is enough, but loop is okay)
-            if (!isMarkerDetected) {
-                canvas.drawText("⚠️ ESTIMATED SCALE", 20f, 50f, paintWarning)
-            }
-
-            for (contour in contours) {
-                if (Imgproc.contourArea(contour) > 100) {
-                    val point2f = MatOfPoint2f(*contour.toArray())
-                    val rotatedRect = Imgproc.minAreaRect(point2f)
-
-                    val points = arrayOfNulls<Point>(4)
-                    rotatedRect.points(points)
-                    val path = Path()
-                    path.moveTo(points[0]!!.x.toFloat(), points[0]!!.y.toFloat())
-                    (1..3).forEach { path.lineTo(points[it]!!.x.toFloat(), points[it]!!.y.toFloat()) }
-                    path.close()
-                    canvas.drawPath(path, paintBox)
-
-                    val rect = Imgproc.boundingRect(contour)
-                    val maskBoxNorm = RectF(
-                        rect.x.toFloat() / width, rect.y.toFloat() / height,
-                        (rect.x + rect.width).toFloat() / width, (rect.y + rect.height).toFloat() / height
-                    )
-
-                    var bestName = "Unknown"
-                    var maxIoU = 0.0f
-                    for (box in speciesBoxes) {
-                        val speciesRect = RectF(box.x1, box.y1, box.x2, box.y2)
-                        val iou = calculateIoU(maskBoxNorm, speciesRect)
-                        if (iou > maxIoU && iou > 0.1) {
-                            maxIoU = iou
-                            bestName = box.clsName
-                        }
-                    }
-
-                    val wPx = rotatedRect.size.width
-                    val hPx = rotatedRect.size.height
-                    val lengthPx = max(wPx, hPx)
-                    val widthPx = min(wPx, hPx)
-
-                    val lengthCm = lengthPx / pixelsPerCm
-                    val widthCm = widthPx / pixelsPerCm
-
-                    var bio = speciesDB["default"]!!
-                    for ((key, value) in speciesDB) {
-                        if (bestName.contains(key, ignoreCase = true)) {
-                            bio = value
-                            break
-                        }
-                    }
-
-                    val weightG = bio.a * lengthCm.pow(bio.b)
-
-                    // Volume Calculation
-                    val areaPx = Imgproc.contourArea(contour)
-                    val areaCm2 = areaPx / (pixelsPerCm * pixelsPerCm)
-                    val estimatedDepthCm = widthCm * bio.ratio
-                    val volumeCm3 = areaCm2 * estimatedDepthCm
-
-                    // PREPEND WARNING TO DESCRIPTION
-                    val warningPrefix = if (!isMarkerDetected) "⚠️ NO MARKER - ESTIMATED SCALE (50px/cm)\n" else ""
-
-                    detectedInfo = warningPrefix + """
-                        Species: $bestName
-                        Box: L:${f(lengthCm)}cm x W:${f(widthCm)}cm
-                        Const: a=${bio.a}, b=${bio.b}
-                        Est: ${f(volumeCm3)}cm³ | ${f0(weightG)}g
-                    """.trimIndent()
-
-                    val overlayText = "$bestName | L:${f(lengthCm)} W:${f(widthCm)} | ${f0(weightG)}g"
-                    canvas.drawText(overlayText, rect.x.toFloat(), rect.y.toFloat() - 10, paintText)
-                }
-                contour.release()
-            }
-            maskMat.release()
-        } catch (e: Exception) {
-            e.printStackTrace()
+        // Draw Box
+        val canvas = Canvas(overlay)
+        val boxPaint = Paint().apply {
+            color = if (isCoin) Color.YELLOW else Color.WHITE
+            strokeWidth = 4F
+            style = Paint.Style.STROKE
         }
-        return detectedInfo
+        val textPaint = Paint().apply {
+            color = if (isCoin) Color.YELLOW else Color.WHITE
+            style = Paint.Style.FILL
+            textSize = 28f
+            setShadowLayer(3f, 0f, 0f, Color.BLACK)
+        }
+
+        val box = segmentationResult.box
+        val left = box.x1 * width
+        val top = box.y1 * height
+        val right = box.x2 * width
+        val bottom = box.y2 * height
+
+        canvas.drawRect(left, top, right, bottom, boxPaint)
+
+        // Math & Details
+        val wPx = (right - left)
+        val hPx = (bottom - top)
+        val lengthPx = maxOf(wPx, hPx)
+        val widthPx = minOf(wPx, hPx)
+
+        val lengthCm = (lengthPx / pixelsPerCm).toDouble()
+        val widthCm = (widthPx / pixelsPerCm).toDouble()
+
+        var displayText = ""
+        var detailedInfo = ""
+
+        if (isCoin) {
+            displayText = "Coin (10Rs) | Dia: ${f(lengthCm)}cm"
+            detailedInfo = """
+                Type: 10 Rupee Coin
+                Dimensions: ${f(lengthCm)}cm x ${f(widthCm)}cm
+                Est. Scale: ${f(lengthPx.toDouble()/2.7)} px/cm
+            """.trimIndent()
+        } else {
+            // Fish Identification
+            var bestName = "Unknown"
+            if (speciesBoxes.isNotEmpty()) {
+                val maskRect = RectF(box.x1, box.y1, box.x2, box.y2)
+                var maxIoU = 0.0f
+                for (sBox in speciesBoxes) {
+                    val sRect = RectF(sBox.x1, sBox.y1, sBox.x2, sBox.y2)
+                    val iou = calculateIoU(maskRect, sRect)
+                    if (iou > maxIoU && iou > 0.1) {
+                        maxIoU = iou
+                        bestName = sBox.clsName
+                    }
+                }
+            } else {
+                bestName = box.clsName
+            }
+
+            var bio = speciesDB["default"]!!
+            for ((key, value) in speciesDB) {
+                if (bestName.contains(key, ignoreCase = true)) {
+                    bio = value
+                    break
+                }
+            }
+
+            val weightG = bio.a * lengthCm.pow(bio.b)
+            val areaCm2 = lengthCm * widthCm * 0.65
+            val depthCm = widthCm * bio.ratio
+            val volumeCm3 = areaCm2 * depthCm
+
+            displayText = "$bestName | ${f0(weightG)}g"
+
+            detailedInfo = """
+                Species: $bestName
+                Dim: L:${f(lengthCm)}cm x W:${f(widthCm)}cm
+                Const: a=${bio.a}, b=${bio.b}
+                Est. Weight: ${f0(weightG)}g
+                Est. Volume: ${f0(volumeCm3)}cm³
+            """.trimIndent()
+        }
+
+        val xPos = left
+        var yPos = top - 10
+        if (yPos < 30) yPos = top + 40
+
+        canvas.drawText(displayText, xPos, yPos, textPaint)
+
+        return detailedInfo
     }
-
-    private fun f(value: Double) = String.format("%.1f", value)
-    private fun f0(value: Double) = String.format("%.0f", value)
 
     private fun calculateIoU(r1: RectF, r2: RectF): Float {
         val intersectLeft = max(r1.left, r2.left)
@@ -296,9 +274,41 @@ class DrawImages(private val context: Context) {
         return intersectionArea / (r1Area + r2Area - intersectionArea)
     }
 
+    private fun f(value: Double) = String.format("%.1f", value)
+    private fun f0(value: Double) = String.format("%.0f", value)
+
     private fun applyTransparentOverlayColor(color: Int): Int {
         val alpha = 96
-        val red = Color.red(color); val green = Color.green(color); val blue = Color.blue(color)
+        val red = Color.red(color)
+        val green = Color.green(color)
+        val blue = Color.blue(color)
         return Color.argb(alpha, red, green, blue)
+    }
+
+    private fun maskOut(image: Bitmap, mask: Array<IntArray>) : Bitmap {
+        if (image.height != mask.size || image.width != mask[0].size) return image
+        val result = Bitmap.createBitmap(image.width, image.height, image.config)
+        for (y in 0 until image.height) {
+            for (x in 0 until image.width) {
+                val pixel = image.getPixel(x, y)
+                result.setPixel(x, y, if (mask[y][x] > 0) pixel else Color.BLACK)
+            }
+        }
+        return result
+    }
+
+    private fun Array<Array<IntArray>>.combineMasks(): Array<IntArray> {
+        if (this.isEmpty() || this.first().isEmpty()) return emptyArray()
+        val h = first().size
+        val w = first()[0].size
+        val result = Array(h) { IntArray(w) }
+        for (mask in this) {
+            for (y in 0 until h) {
+                for (x in 0 until w) {
+                    if (mask[y][x] > 0) result[y][x] = 1
+                }
+            }
+        }
+        return result
     }
 }

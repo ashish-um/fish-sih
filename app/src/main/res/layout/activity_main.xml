@@ -11,7 +11,7 @@
         android:id="@+id/networkStatusBanner"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="#FF5252"
+        android:background="#808080"
         android:gravity="center"
         android:padding="4dp"
         android:text="No Internet Connection"

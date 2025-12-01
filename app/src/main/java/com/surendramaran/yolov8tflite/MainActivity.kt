@@ -56,15 +56,20 @@ class MainActivity : AppCompatActivity() {
             .observe(this) { workInfos ->
                 if (workInfos.isNullOrEmpty()) return@observe
 
-                val workInfo = workInfos[0]
+                // FIX: Prioritize finding a RUNNING job.
+                // If nothing is running, fall back to the LAST job in the list (the most recent one).
+                // This prevents the UI from getting stuck on an old "SUCCEEDED" job [0].
+                val workInfo = workInfos.find { it.state == WorkInfo.State.RUNNING } ?: workInfos.last()
 
                 when (workInfo.state) {
                     WorkInfo.State.RUNNING -> {
                         isSyncing = true
+                        // This pulls the text set in SyncWorker (e.g., "Uploading Image 1 for Rohu...")
                         syncResultMessage = workInfo.progress.getString("status") ?: "Syncing data..."
-                        syncResultSuccess = null // Reset result
+                        syncResultSuccess = null
                     }
                     WorkInfo.State.SUCCEEDED -> {
+                        // Only show success if we were previously syncing or if it's the very latest update
                         isSyncing = false
                         syncResultMessage = "Data Synced Successfully"
                         syncResultSuccess = true
@@ -110,21 +115,24 @@ class MainActivity : AppCompatActivity() {
 
     private fun clearResultAfterDelay(delay: Long = 3000) {
         binding.root.postDelayed({
-            syncResultMessage = null
-            syncResultSuccess = null
-            updateStatusBanner()
+            // Only clear if we aren't currently syncing (prevent clearing active progress)
+            if (!isSyncing) {
+                syncResultMessage = null
+                syncResultSuccess = null
+                updateStatusBanner()
+            }
         }, delay)
     }
 
     private fun updateStatusBanner() {
         if (!isNetworkConnected) {
             // Priority 1: No Internet
-            statusBanner.text = "No Internet Connection"
-            statusBanner.setBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_red_dark))
+            statusBanner.text = "Offline Mode"
+            statusBanner.setBackgroundColor(ContextCompat.getColor(this, android.R.color.darker_gray))
             statusBanner.visibility = View.VISIBLE
 
         } else if (isSyncing) {
-            // Priority 2: Active Sync
+            // Priority 2: Active Sync - shows the detailed message from SyncWorker
             statusBanner.text = syncResultMessage ?: "Syncing..."
             statusBanner.setBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_blue_dark))
             statusBanner.visibility = View.VISIBLE
@@ -156,7 +164,7 @@ class MainActivity : AppCompatActivity() {
 
         WorkManager.getInstance(this).enqueueUniqueWork(
             "HistoryUploadWork",
-            ExistingWorkPolicy.APPEND, // Append ensures pending items are processed
+            ExistingWorkPolicy.APPEND,
             syncRequest
         )
     }

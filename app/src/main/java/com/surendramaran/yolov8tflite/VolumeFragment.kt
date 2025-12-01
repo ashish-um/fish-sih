@@ -1,6 +1,5 @@
 package com.surendramaran.yolov8tflite
 
-// ... imports remain same ...
 import android.Manifest
 import android.app.Activity
 import android.app.Dialog
@@ -12,6 +11,7 @@ import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.location.Geocoder
 import android.location.LocationManager
+import android.media.MediaPlayer // Added import
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -19,6 +19,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import android.widget.VideoView // Added import
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
@@ -68,7 +69,7 @@ import kotlin.math.pow
 import kotlin.math.max
 
 class VolumeFragment : Fragment(), Detector.DetectorListener {
-    // ... binding and vars ...
+
     private var _binding: FragmentVolumeBinding? = null
     private val binding get() = _binding!!
 
@@ -90,12 +91,14 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
     private var lastAnalysisResult: List<AnalysisResult>? = null
     private var currentPhotoUri: Uri? = null
 
-    // ... cropImage and photoPicker remain same ...
     private val cropImage = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
             val resultUri = UCrop.getOutput(result.data!!)
             resultUri?.let { uri ->
                 val bitmap = Utils.getBitmapFromUri(requireContext(), uri) ?: return@let
+
+                // Hide instruction video immediately when we have an image
+                binding.instructionVideoView.visibility = View.GONE
 
                 currentBitmap = bitmap
                 currentScale = 50.0f
@@ -145,7 +148,7 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
             requireContext(),
             SEG_MODEL_PATH,
             null,
-            "Fish", // <--- Model Type
+            "Fish",
             5
         ) { toast("Fish Error: $it") }
 
@@ -154,7 +157,7 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
             requireContext(),
             COIN_MODEL_PATH,
             null,
-            "Coin", // <--- Model Type
+            "Coin",
             5
         ) { toast("Coin Error: $it") }
 
@@ -162,9 +165,43 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
         drawImages = DrawImages(requireContext())
 
         setupListeners()
+        setupInstructionVideo() // Initialize the video player
     }
 
-    // ... setupListeners, detectArUcoMarkers, startCrop remain same ...
+    // NEW FUNCTION: Setup video to play and loop
+    private fun setupInstructionVideo() {
+        try {
+            // Only play if we don't have an analysis yet
+            if (currentBitmap == null) {
+                val videoView = binding.instructionVideoView
+                videoView.visibility = View.VISIBLE
+
+                // Assuming the file is at app/src/main/res/raw/instruction_video.mp4
+                val videoPath = "android.resource://" + requireContext().packageName + "/" + R.raw.instruction_video
+                videoView.setVideoURI(Uri.parse(videoPath))
+
+                videoView.setOnPreparedListener { mediaPlayer ->
+                    mediaPlayer.isLooping = true
+                    mediaPlayer.setVideoScalingMode(MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT)
+                }
+
+                videoView.start()
+            } else {
+                binding.instructionVideoView.visibility = View.GONE
+            }
+        } catch (e: Exception) {
+            Log.e("VolumeFragment", "Error setting up video", e)
+        }
+    }
+
+    // NEW FUNCTION: Resume video on return if no image is selected
+    override fun onResume() {
+        super.onResume()
+        if (currentBitmap == null) {
+            binding.instructionVideoView.start()
+        }
+    }
+
     private fun setupListeners() {
         binding.btnCamera.setOnClickListener {
             val photoFile = Utils.createImageFile(requireContext())
@@ -236,6 +273,7 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
         requireActivity().runOnUiThread {
             binding.pbLoading.visibility = View.VISIBLE
             binding.tvNoFish.visibility = View.GONE
+            binding.instructionVideoView.visibility = View.GONE // Ensure video is hidden
             binding.btnSave.visibility = View.GONE
             viewPagerAdapter.updateImages(emptyList())
         }
@@ -298,12 +336,16 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
             binding.tvInferenceTime.text = "Inference: ${fishSuccess.interfaceTime}ms"
 
             if (fishSuccess.results.isEmpty() && coinResults.isEmpty()) {
+                // Keep video hidden if we are showing "No Fish" text, or show video again?
+                // Usually better to show text "No Fish Detected" rather than reloading video.
+                binding.instructionVideoView.visibility = View.GONE
                 binding.tvNoFish.visibility = View.VISIBLE
                 binding.tvNoFish.text = "No Fish or Coin Detected"
                 binding.btnSave.visibility = View.GONE
                 viewPagerAdapter.updateImages(emptyList())
                 lastAnalysisResult = null
             } else {
+                binding.instructionVideoView.visibility = View.GONE
                 binding.tvNoFish.visibility = View.GONE
                 binding.btnSave.visibility = View.VISIBLE
 
@@ -322,8 +364,6 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
             }
         }
     }
-
-    // ... [saveVolumeLog, saveToDb, triggerBackgroundSync, showSettingsDialog, toast, callbacks remain same] ...
 
     private fun saveVolumeLog() {
         val bitmapsToSave = if (!lastAnalysisResult.isNullOrEmpty()) {

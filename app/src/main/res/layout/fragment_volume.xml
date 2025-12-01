@@ -29,6 +29,17 @@
             android:layout_height="wrap_content"
             android:src="@drawable/ic_settings"/>
 
+        <VideoView
+            android:id="@+id/instructionVideoView"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_margin="24dp"
+            app:layout_constraintDimensionRatio="480:608"
+            app:layout_constraintTop_toBottomOf="@id/tvTitle"
+            app:layout_constraintBottom_toTopOf="@id/cvButtons"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+
         <ProgressBar
             android:id="@+id/pbLoading"
             android:layout_width="wrap_content"

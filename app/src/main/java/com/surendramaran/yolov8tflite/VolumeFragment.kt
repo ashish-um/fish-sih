@@ -25,6 +25,12 @@ import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
+import androidx.work.BackoffPolicy
+import androidx.work.Constraints
+import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequest
+import androidx.work.WorkManager
 import com.surendramaran.yolov8tflite.Constants.LABELS_PATH
 import com.surendramaran.yolov8tflite.Constants.MODEL_PATH
 import com.surendramaran.yolov8tflite.Constants.SEG_MODEL_PATH
@@ -42,6 +48,8 @@ import com.surendramaran.yolov8tflite.segmentation.utils.Utils.addCarouselEffect
 import com.yalantis.ucrop.UCrop
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.opencv.android.OpenCVLoader
 import org.opencv.android.Utils as OpenCVUtils
 import org.opencv.aruco.Aruco
@@ -52,6 +60,7 @@ import org.opencv.imgproc.Imgproc
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 import kotlin.math.sqrt
 import kotlin.math.pow
 
@@ -71,7 +80,8 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
     private var currentScale: Float = 50.0f
     private var isMarkerDetected: Boolean = false
 
-    // Holds the result list for saving
+    private val segmentationMutex = Mutex()
+
     private var lastAnalysisResult: List<AnalysisResult>? = null
     private var currentPhotoUri: Uri? = null
 
@@ -191,12 +201,16 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
 
     private fun runInstanceSegmentation(bitmap: Bitmap, speciesBoxes: List<BoundingBox>, scale: Float) {
         lifecycleScope.launch(Dispatchers.Default) {
-            instanceSegmentation?.invoke(
-                frame = bitmap,
-                smoothEdges = viewModel.isSmoothEdges,
-                onSuccess = { processSuccessResult(bitmap, it, speciesBoxes, scale) },
-                onFailure = { clearOutput(it) }
-            )
+            segmentationMutex.withLock {
+                if (instanceSegmentation != null) {
+                    instanceSegmentation?.invoke(
+                        frame = bitmap,
+                        smoothEdges = viewModel.isSmoothEdges,
+                        onSuccess = { processSuccessResult(bitmap, it, speciesBoxes, scale) },
+                        onFailure = { clearOutput(it) }
+                    )
+                }
+            }
         }
     }
 
@@ -205,13 +219,11 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
             binding.tvInferenceTime.text = "Inference: ${success.interfaceTime}ms"
 
             if (success.results.isEmpty()) {
-                // Case: No Fish Found
                 binding.tvNoFish.visibility = View.VISIBLE
                 binding.btnSave.visibility = View.GONE
                 viewPagerAdapter.updateImages(emptyList())
                 lastAnalysisResult = null
             } else {
-                // Case: Fish Detected
                 binding.tvNoFish.visibility = View.GONE
                 binding.btnSave.visibility = View.VISIBLE
 
@@ -248,7 +260,6 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
             return
         }
 
-        // Collect specific descriptions
         val descriptions = if (!lastAnalysisResult.isNullOrEmpty()) {
             lastAnalysisResult!!.map { it.description }
         } else {
@@ -268,8 +279,7 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
             }
 
             val combinedPaths = paths.joinToString("|")
-            val combinedDetails = descriptions.joinToString(";;;") // Unique delimiter
-
+            val combinedDetails = descriptions.joinToString(";;;")
             val title = if (isMarkerDetected) "Volume (Accurate)" else "Volume (Est.)"
 
             saveToDb(combinedPaths, title, combinedDetails)
@@ -301,7 +311,30 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
 
             dbHelper.insertLog(System.currentTimeMillis(), imagePath, title, details, currentLat, currentLng, placeName, DatabaseHelper.TYPE_VOLUME)
             toast("Volume Log Saved!")
+
+            // TRIGGER SYNC
+            triggerBackgroundSync()
+
         } catch (e: Exception) { toast("Error saving: ${e.message}") }
+    }
+
+    // Helper to trigger sync immediately after save
+    private fun triggerBackgroundSync() {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val syncRequest = OneTimeWorkRequest.Builder(SyncWorker::class.java)
+            .setConstraints(constraints)
+            .setBackoffCriteria(BackoffPolicy.LINEAR, 10, TimeUnit.SECONDS)
+            .build()
+
+        // Append ensures it runs after any currently running sync
+        WorkManager.getInstance(requireContext()).enqueueUniqueWork(
+            "HistoryUploadWork",
+            ExistingWorkPolicy.APPEND,
+            syncRequest
+        )
     }
 
     private fun clearOutput(error: String) {
@@ -314,7 +347,7 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
         }
     }
 
-    private fun showSettingsDialog() {
+    private fun showSettingsDialog() { /* ... existing ... */
         val dialog = Dialog(requireContext())
         val dialogBinding = DialogSettingsBinding.inflate(layoutInflater)
         dialog.setContentView(dialogBinding.root)
@@ -346,8 +379,16 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        val seg = instanceSegmentation
+        val det = detector
         _binding = null
-        instanceSegmentation?.close()
-        detector?.close()
+        instanceSegmentation = null
+        detector = null
+        lifecycleScope.launch(Dispatchers.IO) {
+            segmentationMutex.withLock {
+                seg?.close()
+                det?.close()
+            }
+        }
     }
 }

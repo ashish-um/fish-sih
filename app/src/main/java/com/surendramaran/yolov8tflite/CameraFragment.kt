@@ -30,6 +30,12 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.work.BackoffPolicy
+import androidx.work.Constraints
+import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequest
+import androidx.work.WorkManager
 import com.surendramaran.yolov8tflite.Constants.LABELS_PATH
 import com.surendramaran.yolov8tflite.Constants.MODEL_PATH
 import com.surendramaran.yolov8tflite.databinding.FragmentCameraBinding
@@ -39,6 +45,7 @@ import java.io.FileOutputStream
 import java.util.Locale
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 class CameraFragment : Fragment(), Detector.DetectorListener {
 
@@ -97,7 +104,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         setupRecyclerView()
 
         if (allPermissionsGranted()) {
-            // UPDATED: Post to ensure view dimensions are ready for cropping
             binding.viewFinder.post { startCamera() }
         } else {
             requestPermissionLauncher.launch(REQUIRED_PERMISSIONS)
@@ -126,7 +132,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                 )
             }
 
-            // Dialog Button Listeners
             btnDialogSave.setOnClickListener {
                 saveCurrentDetection()
                 saveDialog.visibility = View.GONE
@@ -224,7 +229,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         val cameraProvider = cameraProvider ?: throw IllegalStateException("Camera initialization failed.")
         val rotation = view?.display?.rotation ?: android.view.Surface.ROTATION_0
 
-        // Capture View Dimensions for Cropping
         val viewWidth = binding.viewFinder.width
         val viewHeight = binding.viewFinder.height
 
@@ -262,7 +266,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                 bitmapBuffer, 0, 0, bitmapBuffer.width, bitmapBuffer.height, matrix, true
             )
 
-            // UPDATED: Crop to View
             val croppedBitmap = cropBitmapToView(rotatedBitmap, viewWidth, viewHeight)
 
             lastBitmap = croppedBitmap
@@ -281,7 +284,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         }
     }
 
-    // NEW: Cropping Logic (Same as FreshnessFragment)
     private fun cropBitmapToView(bitmap: Bitmap, viewWidth: Int, viewHeight: Int): Bitmap {
         val bitmapWidth = bitmap.width
         val bitmapHeight = bitmap.height
@@ -297,18 +299,15 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         var cropHeight = bitmapHeight
 
         if (bitmapRatio > viewRatio) {
-            // Bitmap is wider -> Crop Width
             cropHeight = bitmapHeight
             cropWidth = (bitmapHeight * viewRatio).toInt()
             cropX = (bitmapWidth - cropWidth) / 2
         } else {
-            // Bitmap is taller -> Crop Height
             cropWidth = bitmapWidth
             cropHeight = (bitmapWidth / viewRatio).toInt()
             cropY = (bitmapHeight - cropHeight) / 2
         }
 
-        // Safety checks
         if (cropWidth <= 0) cropWidth = 1
         if (cropHeight <= 0) cropHeight = 1
         if (cropX < 0) cropX = 0
@@ -321,7 +320,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         val bitmapToSave = lastBitmap ?: return
         val resultsToSave = lastResults
 
-        // 1. Get Location
         var currentLat = 0.0
         var currentLng = 0.0
         var placeName = "Location not available"
@@ -336,7 +334,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                     currentLat = lastKnownLocation.latitude
                     currentLng = lastKnownLocation.longitude
 
-                    // 2. Reverse Geocode to get Name
                     try {
                         val geocoder = Geocoder(requireContext(), Locale.getDefault())
                         @Suppress("DEPRECATION")
@@ -363,7 +360,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         }
 
         try {
-            // 3. Draw Bounding Boxes
             val mutableBitmap = bitmapToSave.copy(Bitmap.Config.ARGB_8888, true)
             val canvas = Canvas(mutableBitmap)
 
@@ -397,7 +393,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                 canvas.drawText(text, left, top + bounds.height(), textPaint)
             }
 
-            // 4. Save Image
             val filename = "fish_detect_${System.currentTimeMillis()}.jpg"
             val file = File(requireContext().filesDir, filename)
             val out = FileOutputStream(file)
@@ -405,7 +400,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             out.flush()
             out.close()
 
-            // 5. Insert to DB with Place Name
             val fishCounts = resultsToSave.groupBy { it.clsName }.map { "${it.key}: ${it.value.size}" }.joinToString(", ")
             val details = "Total: ${resultsToSave.size}, Conf: ${resultsToSave.map { String.format("%.2f", it.cnf) }}"
 
@@ -419,13 +413,33 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                 placeName = placeName
             )
 
-            val msg = if (currentLat != 0.0) "Saved at $placeName!" else "Saved (No GPS)"
-            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Saved at $placeName!", Toast.LENGTH_SHORT).show()
+
+            // TRIGGER SYNC HERE
+            triggerBackgroundSync()
 
         } catch (e: Exception) {
             Log.e(TAG, "Error saving detection", e)
             Toast.makeText(context, "Error saving: ${e.message}", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    // Helper to trigger sync
+    private fun triggerBackgroundSync() {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val syncRequest = OneTimeWorkRequest.Builder(SyncWorker::class.java)
+            .setConstraints(constraints)
+            .setBackoffCriteria(BackoffPolicy.LINEAR, 10, TimeUnit.SECONDS)
+            .build()
+
+        WorkManager.getInstance(requireContext()).enqueueUniqueWork(
+            "HistoryUploadWork",
+            ExistingWorkPolicy.APPEND,
+            syncRequest
+        )
     }
 
     private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
@@ -436,7 +450,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         if (permissions[Manifest.permission.CAMERA] == true) {
-            // Post to ensure view dimensions are ready
             binding.viewFinder.post { startCamera() }
         }
     }

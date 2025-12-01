@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -93,4 +94,16 @@ dependencies {
     implementation("com.github.yalantis:ucrop:2.2.8")
 
     implementation ("com.quickbirdstudios:opencv-contrib:4.5.3.0")
+
+    // Firebase
+    implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
+    implementation("com.google.firebase:firebase-firestore-ktx")
+    implementation("com.google.firebase:firebase-storage-ktx")
+    implementation("com.google.firebase:firebase-analytics")
+
+    // WorkManager (for background sync)
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3") // For await()
+
+    implementation("com.cloudinary:cloudinary-android:2.5.0")
 }

@@ -45,8 +45,10 @@ class HistoryDetailFragment : Fragment() {
         val timestamp = arguments?.getLong("timestamp") ?: 0L
         val title = arguments?.getString("fishCount")
         val detailsRaw = arguments?.getString("details") ?: ""
-        val lat = arguments?.getDouble("lat") ?: 0.0
-        val lng = arguments?.getDouble("lng") ?: 0.0
+
+        // FIX: Retrieve as Float and convert to Double
+        val lat = arguments?.getFloat("lat")?.toDouble() ?: 0.0
+        val lng = arguments?.getFloat("lng")?.toDouble() ?: 0.0
 
         val viewPager: ViewPager2 = view.findViewById(R.id.detailImagePager)
         val dateView: TextView = view.findViewById(R.id.detailDate)

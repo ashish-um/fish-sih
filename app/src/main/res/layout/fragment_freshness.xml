@@ -67,13 +67,6 @@
                             android:layout_width="match_parent"
                             android:layout_height="match_parent">
 
-                            <androidx.camera.view.PreviewView
-                                android:id="@+id/viewFinderEyes"
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:visibility="invisible"
-                                app:scaleType="fillCenter" />
-
                             <VideoView
                                 android:id="@+id/videoInstructionsEyes"
                                 android:layout_width="match_parent"
@@ -98,6 +91,18 @@
                                 android:layout_height="match_parent"
                                 android:translationZ="5dp" />
 
+                            <ProgressBar
+                                android:id="@+id/pbEyesLoading"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:indeterminateTint="@color/primary"
+                                android:translationZ="20dp"
+                                android:visibility="gone"
+                                app:layout_constraintBottom_toBottomOf="parent"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent"
+                                app:layout_constraintTop_toTopOf="parent" />
+
                             <LinearLayout
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
@@ -119,10 +124,10 @@
                                     app:tint="@android:color/black" />
 
                                 <com.google.android.material.floatingactionbutton.FloatingActionButton
-                                    android:id="@+id/btnPlayPauseEyes"
+                                    android:id="@+id/btnCameraEyes"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:src="@android:drawable/ic_media_play"
+                                    android:src="@drawable/ic_camera"
                                     app:backgroundTint="@android:color/white"
                                     app:fabSize="normal"
                                     app:tint="@android:color/black" />
@@ -181,13 +186,6 @@
                             android:layout_width="match_parent"
                             android:layout_height="match_parent">
 
-                            <androidx.camera.view.PreviewView
-                                android:id="@+id/viewFinderGills"
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:visibility="invisible"
-                                app:scaleType="fillCenter" />
-
                             <VideoView
                                 android:id="@+id/videoInstructionsGills"
                                 android:layout_width="match_parent"
@@ -212,6 +210,18 @@
                                 android:layout_height="match_parent"
                                 android:translationZ="5dp" />
 
+                            <ProgressBar
+                                android:id="@+id/pbGillsLoading"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:indeterminateTint="@color/primary"
+                                android:translationZ="20dp"
+                                android:visibility="gone"
+                                app:layout_constraintBottom_toBottomOf="parent"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent"
+                                app:layout_constraintTop_toTopOf="parent" />
+
                             <LinearLayout
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
@@ -233,10 +243,10 @@
                                     app:tint="@android:color/black" />
 
                                 <com.google.android.material.floatingactionbutton.FloatingActionButton
-                                    android:id="@+id/btnPlayPauseGills"
+                                    android:id="@+id/btnCameraGills"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:src="@android:drawable/ic_media_play"
+                                    android:src="@drawable/ic_camera"
                                     app:backgroundTint="@android:color/white"
                                     app:fabSize="normal"
                                     app:tint="@android:color/black" />

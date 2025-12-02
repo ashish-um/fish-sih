@@ -72,11 +72,12 @@ class HistoryFragment : Fragment() {
                 val bundle = bundleOf(
                     "imagePath" to item.imagePath,
                     "timestamp" to item.timestamp,
-                    "fishCount" to item.title, // Passed as 'fishCount' key for compatibility
+                    "fishCount" to item.title,
                     "details" to item.details,
                     "placeName" to item.placeName,
-                    "lat" to item.lat,
-                    "lng" to item.lng
+                    // FIX: Convert Double to Float to match NavGraph argument type
+                    "lat" to item.lat.toFloat(),
+                    "lng" to item.lng.toFloat()
                 )
 
                 val extras = FragmentNavigatorExtras(

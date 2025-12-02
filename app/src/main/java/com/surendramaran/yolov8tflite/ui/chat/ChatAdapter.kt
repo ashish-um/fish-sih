@@ -44,12 +44,12 @@ class ChatAdapter : RecyclerView.Adapter<ChatAdapter.ChatViewHolder>() {
 
         if (message.isUser) {
             layout.gravity = Gravity.END
-            tvSender.text = "You"
+            tvSender.text = holder.itemView.context.getString(R.string.you)
             tvSender.gravity = Gravity.END
             tvMessage.setBackgroundColor(0xFF007AFF.toInt()) // Blue
         } else {
             layout.gravity = Gravity.START
-            tvSender.text = "Fish AI"
+            tvSender.text = holder.itemView.context.getString(R.string.fish_ai)
             tvSender.gravity = Gravity.START
             tvMessage.setBackgroundColor(0xFF555555.toInt()) // Gray
         }

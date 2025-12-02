@@ -65,7 +65,7 @@
         android:id="@+id/btn_profile"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="My Profile"
+        android:text="@string/my_profile"
         android:drawableStart="@android:drawable/ic_menu_myplaces"
         android:drawablePadding="12dp"
         android:gravity="start|center_vertical"

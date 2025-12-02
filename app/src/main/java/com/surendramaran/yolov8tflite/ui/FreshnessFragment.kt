@@ -90,7 +90,7 @@ class FreshnessFragment : Fragment() {
     // 4. Permission Launcher
     private val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
         if (isGranted) launchCamera()
-        else Toast.makeText(context, "Camera permission needed", Toast.LENGTH_SHORT).show()
+        else Toast.makeText(context, getString(R.string.camera_permission_needed), Toast.LENGTH_SHORT).show()
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
@@ -221,7 +221,7 @@ class FreshnessFragment : Fragment() {
             tempImageUri = FileProvider.getUriForFile(requireContext(), "${requireContext().packageName}.provider", tmpFile)
             takePictureLauncher.launch(tempImageUri)
         } catch (e: Exception) {
-            Toast.makeText(context, "Error starting camera", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, getString(R.string.error_starting_camera), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -230,7 +230,7 @@ class FreshnessFragment : Fragment() {
         val destFile = File(requireContext().cacheDir, destFileName)
         val options = UCrop.Options().apply {
             setCompressionQuality(90)
-            setToolbarTitle(if (isTargetingEyes) "Crop Eyes" else "Crop Gills")
+            setToolbarTitle(if (isTargetingEyes) getString(R.string.crop_eyes) else getString(R.string.crop_gills))
             setFreeStyleCropEnabled(true)
         }
         cropImage.launch(UCrop.of(sourceUri, Uri.fromFile(destFile)).withOptions(options).getIntent(requireContext()))
@@ -245,6 +245,11 @@ class FreshnessFragment : Fragment() {
             bitmap = Utils.rotateImageIfRequired(requireContext(), bitmap, uri)
 
             if (isTargetingEyes) {
+                // SAFETY CHECK
+                if (detectorEyes == null) {
+                    Toast.makeText(context, "AI is initializing, please wait...", Toast.LENGTH_SHORT).show()
+                    return
+                }
                 lastBitmapEyes = bitmap
                 binding.imgEyes.setImageBitmap(bitmap)
                 binding.imgEyes.visibility = View.VISIBLE
@@ -256,6 +261,10 @@ class FreshnessFragment : Fragment() {
 
                 cameraExecutor.execute { detectorEyes?.detect(bitmap) }
             } else {
+                if (detectorGills == null) {
+                    Toast.makeText(context, "AI is initializing, please wait...", Toast.LENGTH_SHORT).show()
+                    return
+                }
                 lastBitmapGills = bitmap
                 binding.imgGills.setImageBitmap(bitmap)
                 binding.imgGills.visibility = View.VISIBLE

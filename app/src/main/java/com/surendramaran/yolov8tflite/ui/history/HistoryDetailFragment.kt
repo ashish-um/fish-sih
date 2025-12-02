@@ -46,6 +46,7 @@ class HistoryDetailFragment : Fragment() {
         val title = arguments?.getString("fishCount")
         val detailsRaw = arguments?.getString("details") ?: ""
 
+        val placeName = arguments?.getString("placeName") ?: getString(R.string.unknown)
         // FIX: Retrieve as Float and convert to Double
         val lat = arguments?.getFloat("lat")?.toDouble() ?: 0.0
         val lng = arguments?.getFloat("lng")?.toDouble() ?: 0.0
@@ -68,7 +69,13 @@ class HistoryDetailFragment : Fragment() {
         dateView.text = sdf.format(Date(timestamp))
 
         if (lat != 0.0 && lng != 0.0) {
-            locationView.text = getString(R.string.lat_lng_location, lat, lng)
+            // Use the place name if valid, otherwise use coordinates
+            if (placeName != getString(R.string.unknown) && placeName != getString(R.string.location_not_available)) {
+                locationView.text = placeName
+            } else {
+                locationView.text = getString(R.string.lat_lng_location, lat, lng)
+            }
+
             mapCard.visibility = View.VISIBLE
             setupMiniMap(lat, lng)
         } else {

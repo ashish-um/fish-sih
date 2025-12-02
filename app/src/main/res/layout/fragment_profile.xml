@@ -17,7 +17,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="32dp"
-        android:text="My Profile"
+        android:text="@string/my_profile"
         android:textColor="@color/white"
         android:textSize="28sp"
         android:textStyle="bold"
@@ -63,7 +63,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:text="Tap icon to change photo"
+        android:text="@string/tap_to_change_photo"
         android:textColor="#757575"
         android:textSize="12sp"
         app:layout_constraintEnd_toEndOf="parent"
@@ -82,7 +82,7 @@
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Full Name"
+            android:hint="@string/full_name"
             app:startIconDrawable="@android:drawable/ic_menu_myplaces">
 
             <com.google.android.material.textfield.TextInputEditText
@@ -97,7 +97,7 @@
             android:layout_width="match_parent"
             android:layout_height="60dp"
             android:layout_marginTop="32dp"
-            android:text="Save Changes"
+            android:text="@string/save_changes"
             android:textSize="16sp"
             app:cornerRadius="8dp" />
 

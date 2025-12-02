@@ -16,6 +16,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
+import com.surendramaran.yolov8tflite.R
 import com.surendramaran.yolov8tflite.databinding.FragmentProfileBinding
 import com.surendramaran.yolov8tflite.utils.UserUtils
 import com.yalantis.ucrop.UCrop
@@ -36,7 +37,7 @@ class ProfileFragment : Fragment() {
         if (isGranted) {
             launchCamera()
         } else {
-            Toast.makeText(context, "Camera permission required to take photos", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, getString(R.string.profile_camera_permission_required), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -47,7 +48,7 @@ class ProfileFragment : Fragment() {
             resultUri?.let { saveImageLocally(it) }
         } else if (result.resultCode == UCrop.RESULT_ERROR) {
             val error = UCrop.getError(result.data!!)
-            Toast.makeText(context, "Crop error: ${error?.message}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, getString(R.string.profile_crop_error, error?.message), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -91,29 +92,29 @@ class ProfileFragment : Fragment() {
             val name = binding.etName.text.toString().trim()
             if (name.isNotEmpty()) {
                 UserUtils.saveProfile(requireContext(), name, currentPhotoPath)
-                Toast.makeText(context, "Profile Saved!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, getString(R.string.profile_saved), Toast.LENGTH_SHORT).show()
 
                 if (isOnboarding) {
                     findNavController().navigate(
-                        com.surendramaran.yolov8tflite.R.id.cameraFragment,
+                        R.id.cameraFragment,
                         null,
                         androidx.navigation.NavOptions.Builder()
-                            .setPopUpTo(com.surendramaran.yolov8tflite.R.id.languageFragment, true)
+                            .setPopUpTo(R.id.languageFragment, true)
                             .build()
                     )
                 } else {
                     findNavController().popBackStack()
                 }
             } else {
-                binding.tilName.error = "Name is required"
+                binding.tilName.error = getString(R.string.profile_name_required)
             }
         }
     }
 
     private fun showImagePickerOptions() {
-        val options = arrayOf("Take Photo", "Choose from Gallery")
+        val options = arrayOf(getString(R.string.profile_take_photo), getString(R.string.profile_choose_from_gallery))
         AlertDialog.Builder(requireContext())
-            .setTitle("Change Profile Photo")
+            .setTitle(getString(R.string.profile_change_photo_title))
             .setItems(options) { dialog, which ->
                 when (which) {
                     0 -> checkPermissionAndOpenCamera()
@@ -145,7 +146,7 @@ class ProfileFragment : Fragment() {
             )
             takePicture.launch(tempImageUri)
         } catch (e: Exception) {
-            Toast.makeText(context, "Error starting camera: ${e.message}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, getString(R.string.profile_error_starting_camera, e.message), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -158,7 +159,7 @@ class ProfileFragment : Fragment() {
         options.setCircleDimmedLayer(true)
         options.setShowCropGrid(false)
         options.setCompressionQuality(90)
-        options.setToolbarTitle("Edit Photo")
+        options.setToolbarTitle(getString(R.string.profile_edit_photo_title))
 
         val uCrop = UCrop.of(sourceUri, destUri).withOptions(options)
         cropImage.launch(uCrop.getIntent(requireContext()))
@@ -177,7 +178,7 @@ class ProfileFragment : Fragment() {
             binding.ivProfile.setImageDrawable(null)
             binding.ivProfile.setImageURI(Uri.fromFile(file))
         } catch (e: Exception) {
-            Toast.makeText(context, "Failed to save image", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, getString(R.string.profile_failed_to_save_image), Toast.LENGTH_SHORT).show()
         }
     }
 

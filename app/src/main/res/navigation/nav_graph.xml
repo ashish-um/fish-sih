@@ -8,37 +8,37 @@
     <fragment
         android:id="@+id/cameraFragment"
         android:name="com.surendramaran.yolov8tflite.ui.camera.CameraFragment"
-        android:label="Camera" />
+        android:label="@string/camera" />
 
     <fragment
         android:id="@+id/freshnessFragment"
         android:name="com.surendramaran.yolov8tflite.ui.FreshnessFragment"
-        android:label="Check Freshness" />
+        android:label="@string/check_freshness" />
 
     <fragment
         android:id="@+id/volumeFragment"
         android:name="com.surendramaran.yolov8tflite.ui.volume.VolumeFragment"
-        android:label="Volume" />
+        android:label="@string/volume" />
 
     <fragment
         android:id="@+id/moreFragment"
         android:name="com.surendramaran.yolov8tflite.ui.MoreFragment"
-        android:label="More" />
+        android:label="@string/more" />
 
     <fragment
         android:id="@+id/chatFragment"
         android:name="com.surendramaran.yolov8tflite.ui.chat.ChatFragment"
-        android:label="AI Chat" />
+        android:label="@string/ai_chat" />
 
     <fragment
         android:id="@+id/mapFragment"
         android:name="com.surendramaran.yolov8tflite.ui.MapFragment"
-        android:label="Map" />
+        android:label="@string/map" />
 
     <fragment
         android:id="@+id/historyFragment"
         android:name="com.surendramaran.yolov8tflite.ui.history.HistoryFragment"
-        android:label="History">
+        android:label="@string/history">
         <action
             android:id="@+id/action_history_to_detail"
             app:destination="@id/historyDetailFragment"
@@ -51,20 +51,24 @@
     <fragment
         android:id="@+id/historyDetailFragment"
         android:name="com.surendramaran.yolov8tflite.ui.history.HistoryDetailFragment"
-        android:label="Detection Detail">
+        android:label="@string/detection_detail">
         <argument android:name="imagePath" app:argType="string" />
         <argument android:name="timestamp" app:argType="long" />
         <argument android:name="fishCount" app:argType="string" />
         <argument android:name="details" app:argType="string" />
         <argument android:name="lat" app:argType="float" android:defaultValue="0.0" />
         <argument android:name="lng" app:argType="float" android:defaultValue="0.0" />
-        <argument android:name="placeName" app:argType="string" android:defaultValue="Unknown" />
+
+        <argument
+            android:name="placeName"
+            app:argType="string"
+            app:nullable="true" />
     </fragment>
 
     <fragment
         android:id="@+id/languageFragment"
         android:name="com.surendramaran.yolov8tflite.ui.onboarding.LanguageFragment"
-        android:label="Select Language"
+        android:label="@string/select_language"
         tools:layout="@layout/fragment_language">
         <action
             android:id="@+id/action_language_to_profile"
@@ -76,7 +80,7 @@
     <fragment
         android:id="@+id/profileFragment"
         android:name="com.surendramaran.yolov8tflite.ui.profile.ProfileFragment"
-        android:label="Profile">
+        android:label="@string/profile">
         <argument
             android:name="isOnboarding"
             app:argType="boolean"

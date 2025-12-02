@@ -6,37 +6,37 @@
 
     <fragment
         android:id="@+id/cameraFragment"
-        android:name="com.surendramaran.yolov8tflite.CameraFragment"
+        android:name="com.surendramaran.yolov8tflite.ui.camera.CameraFragment"
         android:label="Camera" />
 
     <fragment
         android:id="@+id/freshnessFragment"
-        android:name="com.surendramaran.yolov8tflite.FreshnessFragment"
+        android:name="com.surendramaran.yolov8tflite.ui.FreshnessFragment"
         android:label="Check Freshness" />
 
     <fragment
         android:id="@+id/volumeFragment"
-        android:name="com.surendramaran.yolov8tflite.VolumeFragment"
+        android:name="com.surendramaran.yolov8tflite.ui.volume.VolumeFragment"
         android:label="Volume" />
 
     <fragment
         android:id="@+id/moreFragment"
-        android:name="com.surendramaran.yolov8tflite.MoreFragment"
+        android:name="com.surendramaran.yolov8tflite.ui.MoreFragment"
         android:label="More" />
 
     <fragment
         android:id="@+id/chatFragment"
-        android:name="com.surendramaran.yolov8tflite.ChatFragment"
+        android:name="com.surendramaran.yolov8tflite.ui.chat.ChatFragment"
         android:label="AI Chat" />
 
     <fragment
         android:id="@+id/mapFragment"
-        android:name="com.surendramaran.yolov8tflite.MapFragment"
+        android:name="com.surendramaran.yolov8tflite.ui.MapFragment"
         android:label="Map" />
 
     <fragment
         android:id="@+id/historyFragment"
-        android:name="com.surendramaran.yolov8tflite.HistoryFragment"
+        android:name="com.surendramaran.yolov8tflite.ui.history.HistoryFragment"
         android:label="History">
         <action
             android:id="@+id/action_history_to_detail"
@@ -49,7 +49,7 @@
 
     <fragment
         android:id="@+id/historyDetailFragment"
-        android:name="com.surendramaran.yolov8tflite.HistoryDetailFragment"
+        android:name="com.surendramaran.yolov8tflite.ui.history.HistoryDetailFragment"
         android:label="Detection Detail">
         <argument android:name="imagePath" app:argType="string" />
         <argument android:name="timestamp" app:argType="long" />

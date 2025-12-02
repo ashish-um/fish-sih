@@ -16,7 +16,9 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import com.surendramaran.yolov8tflite.data.SyncWorker
 import com.surendramaran.yolov8tflite.databinding.ActivityMainBinding
+import com.surendramaran.yolov8tflite.utils.NetworkHelper
 import java.util.concurrent.TimeUnit
 
 class MainActivity : AppCompatActivity() {

@@ -80,7 +80,7 @@
                                 android:scaleType="fitCenter"
                                 android:visibility="gone" />
 
-                            <com.surendramaran.yolov8tflite.OverlayView
+                            <com.surendramaran.yolov8tflite.ui.customview.OverlayView
                                 android:id="@+id/overlayEyes"
                                 android:layout_width="match_parent"
                                 android:layout_height="match_parent"
@@ -182,7 +182,7 @@
                                 android:scaleType="fitCenter"
                                 android:visibility="gone" />
 
-                            <com.surendramaran.yolov8tflite.OverlayView
+                            <com.surendramaran.yolov8tflite.ui.customview.OverlayView
                                 android:id="@+id/overlayGills"
                                 android:layout_width="match_parent"
                                 android:layout_height="match_parent"

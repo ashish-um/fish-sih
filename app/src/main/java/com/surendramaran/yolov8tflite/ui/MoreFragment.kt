@@ -1,9 +1,12 @@
 package com.surendramaran.yolov8tflite.ui
 
+import android.app.AlertDialog
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
 import com.surendramaran.yolov8tflite.R
@@ -25,17 +28,38 @@ class MoreFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        binding.btnHistory.setOnClickListener {
-            findNavController().navigate(R.id.historyFragment)
+        // --- NEW: Profile Button logic ---
+        // (Ensure you add a button with ID btnProfile to fragment_more.xml)
+        binding.btnProfile.setOnClickListener {
+            findNavController().navigate(R.id.profileFragment)
         }
 
-        binding.btnMap.setOnClickListener {
-            findNavController().navigate(R.id.mapFragment)
-        }
+        binding.btnHistory.setOnClickListener { findNavController().navigate(R.id.historyFragment) }
+        binding.btnMap.setOnClickListener { findNavController().navigate(R.id.mapFragment) }
+        binding.btnChat.setOnClickListener { findNavController().navigate(R.id.chatFragment) }
+        binding.btnLanguage.setOnClickListener { showLanguageDialog() }
+    }
 
-        binding.btnChat.setOnClickListener {
-            findNavController().navigate(R.id.chatFragment)
-        }
+    private fun showLanguageDialog() {
+        val languages = arrayOf("English", "हिन्दी (Hindi)", "தமிழ் (Tamil)", "മലയാളം (Malayalam)", "తెలుగు (Telugu)", "বাংলা (Bengali)")
+        val codes = arrayOf("en", "hi", "ta", "ml", "te", "bn")
+
+        val localeList = AppCompatDelegate.getApplicationLocales()
+        val currentLocaleCode = if (!localeList.isEmpty) localeList[0]?.language else "en"
+        val currentIndex = codes.indexOf(currentLocaleCode).takeIf { it != -1 } ?: 0
+
+        AlertDialog.Builder(requireContext())
+            .setTitle("Choose Language / மொழி")
+            .setSingleChoiceItems(languages, currentIndex) { dialog, which ->
+                setAppLocale(codes[which])
+                dialog.dismiss()
+            }
+            .show()
+    }
+
+    private fun setAppLocale(languageCode: String) {
+        val appLocale: LocaleListCompat = LocaleListCompat.forLanguageTags(languageCode)
+        AppCompatDelegate.setApplicationLocales(appLocale)
     }
 
     override fun onDestroyView() {

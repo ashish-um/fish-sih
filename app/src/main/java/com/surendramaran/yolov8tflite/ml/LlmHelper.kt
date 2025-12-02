@@ -2,6 +2,7 @@ package com.surendramaran.yolov8tflite.ml
 
 import android.content.Context
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
+import com.surendramaran.yolov8tflite.R
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -16,7 +17,7 @@ class LlmHelper(
     fun initModel() {
         val file = File(modelPath)
         if (!file.exists()) {
-            throw RuntimeException("Model file not found at: $modelPath")
+            throw RuntimeException(context.getString(R.string.model_not_found, modelPath))
         }
 
         // Initialize without a listener in options (Fixes 'Unresolved reference')
@@ -31,7 +32,7 @@ class LlmHelper(
     // Returns a Flow that emits strings as they are generated
     fun generateResponse(prompt: String): Flow<String> = callbackFlow {
         if (llmInference == null) {
-            trySend("Error: AI Engine is not ready.")
+            trySend(context.getString(R.string.llm_not_ready))
             close()
             return@callbackFlow
         }
@@ -51,7 +52,7 @@ class LlmHelper(
                 }
             }
         } catch (e: Exception) {
-            trySend("Error: ${e.message}")
+            trySend(context.getString(R.string.llm_error, e.message))
             close()
         }
 

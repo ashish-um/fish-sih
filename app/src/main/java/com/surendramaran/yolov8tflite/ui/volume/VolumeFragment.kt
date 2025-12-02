@@ -116,7 +116,7 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
             }
         } else if (result.resultCode == UCrop.RESULT_ERROR) {
             val error = UCrop.getError(result.data!!)
-            toast("Crop error: ${error?.message}")
+            toast(getString(R.string.crop_error_with_message, error?.message))
         }
     }
 
@@ -150,7 +150,7 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
             null,
             "Fish",
             5
-        ) { toast("Fish Error: $it") }
+        ) { toast(getString(R.string.fish_error, it)) }
 
         // 2. Initialize Coin Seg Model (Type "Coin")
         coinSegmentation = InstanceSegmentation(
@@ -159,7 +159,7 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
             null,
             "Coin",
             5
-        ) { toast("Coin Error: $it") }
+        ) { toast(getString(R.string.coin_error, it)) }
 
         detector = Detector(requireContext(), Constants.MODEL_PATH, Constants.LABELS_PATH, this)
         drawImages = DrawImages(requireContext())
@@ -190,7 +190,7 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
                 binding.instructionVideoView.visibility = View.GONE
             }
         } catch (e: Exception) {
-            Log.e("VolumeFragment", "Error setting up video", e)
+            Log.e("VolumeFragment", getString(R.string.error_setting_up_video), e)
         }
     }
 
@@ -213,7 +213,7 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
         }
         binding.btnSave.setOnClickListener {
             if (currentBitmap != null) binding.saveDialog.visibility = View.VISIBLE
-            else toast("No analysis to save")
+            else toast(getString(R.string.no_analysis_to_save))
         }
         binding.btnDialogDiscard.setOnClickListener { binding.saveDialog.visibility = View.GONE }
         binding.btnDialogSave.setOnClickListener {
@@ -250,7 +250,7 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
                 detectedScale = widthPx / 5.0f
                 markerFound = true
             }
-        } catch (e: Exception) { Log.e("VolumeFragment", "ArUco Error", e) }
+        } catch (e: Exception) { Log.e("VolumeFragment", getString(R.string.aruco_error), e) }
 
         val resultBitmap = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
         org.opencv.android.Utils.matToBitmap(rgbMat, resultBitmap)
@@ -262,7 +262,7 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
     private fun startCrop(sourceUri: Uri) {
         val destFile = File(requireContext().cacheDir, "crop_${System.currentTimeMillis()}.jpg")
         val options = UCrop.Options().apply {
-            setToolbarTitle("Crop Fish")
+            setToolbarTitle(getString(R.string.crop_fish))
             setFreeStyleCropEnabled(true)
             setCompressionQuality(90)
         }
@@ -302,9 +302,9 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
                                     isMarkerDetected = true
                                 }
                             },
-                            onFailure = { Log.e("VolFrag", "Coin model failed: $it") }
+                            onFailure = { Log.e("VolFrag", getString(R.string.coin_model_failed, it)) }
                         )
-                    } catch (e: Exception) { Log.e("VolFrag", "Coin model crashed", e) }
+                    } catch (e: Exception) { Log.e("VolFrag", getString(R.string.coin_model_crashed), e) }
                 }
 
                 if (instanceSegmentation != null) {
@@ -313,9 +313,9 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
                             frame = bitmap,
                             smoothEdges = viewModel.isSmoothEdges,
                             onSuccess = { success -> fishSuccess = success },
-                            onFailure = { Log.e("VolFrag", "Fish model failed: $it") }
+                            onFailure = { Log.e("VolFrag", getString(R.string.fish_model_failed, it)) }
                         )
-                    } catch (e: Exception) { Log.e("VolFrag", "Fish model crashed", e) }
+                    } catch (e: Exception) { Log.e("VolFrag", getString(R.string.fish_model_crashed), e) }
                 }
 
                 val finalFishSuccess = fishSuccess ?: Success(0, 0, 0, emptyList())
@@ -333,14 +333,14 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
     ) {
         requireActivity().runOnUiThread {
             binding.pbLoading.visibility = View.GONE
-            binding.tvInferenceTime.text = "Inference: ${fishSuccess.interfaceTime}ms"
+            binding.tvInferenceTime.text = getString(R.string.inference_time, fishSuccess.interfaceTime)
 
             if (fishSuccess.results.isEmpty() && coinResults.isEmpty()) {
                 // Keep video hidden if we are showing "No Fish" text, or show video again?
                 // Usually better to show text "No Fish Detected" rather than reloading video.
                 binding.instructionVideoView.visibility = View.GONE
                 binding.tvNoFish.visibility = View.VISIBLE
-                binding.tvNoFish.text = "No Fish or Coin Detected"
+                binding.tvNoFish.text = getString(R.string.no_fish_or_coin_detected)
                 binding.btnSave.visibility = View.GONE
                 viewPagerAdapter.updateImages(emptyList())
                 lastAnalysisResult = null
@@ -386,7 +386,7 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
         val descriptions = if (!lastAnalysisResult.isNullOrEmpty()) {
             lastAnalysisResult!!.map { it.description }
         } else {
-            listOf("Raw Image\nMarker: ${if (isMarkerDetected) "Yes" else "No"}")
+            listOf(getString(R.string.raw_image_marker_status, if (isMarkerDetected) getString(R.string.yes) else getString(R.string.no)))
         }
 
         val paths = mutableListOf<String>()
@@ -403,17 +403,17 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
 
             val combinedPaths = paths.joinToString("|")
             val combinedDetails = descriptions.joinToString(";;;")
-            val title = if (isMarkerDetected) "Volume (Accurate)" else "Volume (Est.)"
+            val title = if (isMarkerDetected) getString(R.string.volume_accurate) else getString(R.string.volume_estimated)
 
             saveToDb(combinedPaths, title, combinedDetails)
         } catch (e: Exception) {
-            toast("Save failed: ${e.message}")
+            toast(getString(R.string.save_failed, e.message))
         }
     }
 
     private fun saveToDb(imagePath: String, title: String, details: String) {
         try {
-            var currentLat = 0.0; var currentLng = 0.0; var placeName = "Location not available"
+            var currentLat = 0.0; var currentLng = 0.0; var placeName = getString(R.string.location_not_available)
             try {
                 if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
                     val locationManager = requireContext().getSystemService(Context.LOCATION_SERVICE) as LocationManager
@@ -433,9 +433,9 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
             } catch (e: Exception) {}
 
             dbHelper.insertLog(System.currentTimeMillis(), imagePath, title, details, currentLat, currentLng, placeName, DatabaseHelper.Companion.TYPE_VOLUME)
-            toast("Volume Log Saved!")
+            toast(getString(R.string.volume_log_saved))
             triggerBackgroundSync()
-        } catch (e: Exception) { toast("Error saving: ${e.message}") }
+        } catch (e: Exception) { toast(getString(R.string.error_saving, e.message)) }
     }
 
     private fun triggerBackgroundSync() {

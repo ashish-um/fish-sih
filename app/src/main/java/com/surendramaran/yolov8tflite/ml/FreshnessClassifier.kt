@@ -2,6 +2,7 @@ package com.surendramaran.yolov8tflite.ml
 
 import android.content.Context
 import android.graphics.Bitmap
+import com.surendramaran.yolov8tflite.R
 import org.tensorflow.lite.DataType
 import org.tensorflow.lite.Interpreter
 import org.tensorflow.lite.support.common.FileUtil
@@ -105,7 +106,7 @@ class FreshnessClassifier(
             maxScore
         }
 
-        val result = if (maxIndex != -1 && maxIndex < labels.size) labels[maxIndex] else "Unknown"
+        val result = if (maxIndex != -1 && maxIndex < labels.size) labels[maxIndex] else context.getString(R.string.unknown)
 
         listener.onResult(result, confidence)
     }

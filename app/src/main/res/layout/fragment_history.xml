@@ -10,7 +10,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:padding="16dp"
-        android:text="Saved History"
+        android:text="@string/saved_history"
         android:textColor="@color/black"
         android:textSize="24sp"
         android:textStyle="bold"
@@ -40,21 +40,21 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:checked="true"
-                android:text="Classification" />
+                android:text="@string/classification" />
 
             <com.google.android.material.chip.Chip
                 android:id="@+id/chipFreshness"
                 style="@style/Widget.MaterialComponents.Chip.Choice"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Freshness" />
+                android:text="@string/freshness" />
 
             <com.google.android.material.chip.Chip
                 android:id="@+id/chipVolume"
                 style="@style/Widget.MaterialComponents.Chip.Choice"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Volume" />
+                android:text="@string/volume" />
 
         </com.google.android.material.chip.ChipGroup>
     </HorizontalScrollView>
@@ -74,7 +74,7 @@
         android:id="@+id/emptyStateText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="No saved records found"
+        android:text="@string/no_saved_records_found"
         android:textColor="#999"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"

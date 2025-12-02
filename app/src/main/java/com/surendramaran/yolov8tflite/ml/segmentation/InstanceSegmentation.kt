@@ -3,6 +3,7 @@ package com.surendramaran.yolov8tflite.ml.segmentation
 import android.content.Context
 import android.graphics.Bitmap
 import android.os.SystemClock
+import com.surendramaran.yolov8tflite.R
 import com.surendramaran.yolov8tflite.ml.segmentation.ImageUtils.scaleMask
 import com.surendramaran.yolov8tflite.ml.segmentation.ImageUtils.smooth
 import com.surendramaran.yolov8tflite.ml.segmentation.ImageUtils.toMask
@@ -20,7 +21,7 @@ import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
 import java.nio.ByteBuffer
 
 class InstanceSegmentation(
-    context: Context,
+    private val context: Context,
     modelPath: String,
     labelPath: String?,
     private val modelType: String = "Fish", // "Fish" or "Coin"
@@ -57,9 +58,9 @@ class InstanceSegmentation(
             if (labelPath == null) {
                 // Use the modelType to determine the default label
                 if (modelType == "Coin") {
-                    labels.add("Reference")
+                    labels.add(context.getString(R.string.reference))
                 } else {
-                    labels.add("Fish")
+                    labels.add(context.getString(R.string.fish))
                 }
             } else {
                 labels.addAll(extractNamesFromLabelFile(context, labelPath))
@@ -103,7 +104,7 @@ class InstanceSegmentation(
 
     fun invoke(frame: Bitmap, smoothEdges: Boolean, onSuccess: (Success) -> Unit, onFailure: (String) -> Unit ) {
         if (tensorWidth == 0 || tensorHeight == 0 || numChannel == 0 || numElements == 0 || masksNum == 0) {
-            onFailure("Interpreter not initialized properly")
+            onFailure(context.getString(R.string.interpreter_not_initialized))
             return
         }
 
@@ -224,7 +225,7 @@ class InstanceSegmentation(
             }
 
             if (maxConf > CONFIDENCE_THRESHOLD) {
-                val clsName = if (maxIdx < labels.size) labels[maxIdx] else labels.lastOrNull() ?: "Unknown"
+                val clsName = if (maxIdx < labels.size) labels[maxIdx] else labels.lastOrNull() ?: context.getString(R.string.unknown)
                 val cx = array[c]
                 val cy = array[c + numElements]
                 val w = array[c + numElements * 2]

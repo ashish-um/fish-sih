@@ -79,7 +79,7 @@ class DrawImages(private val context: Context) {
                             pixelsPerCm,
                             isCoin = true
                         )
-                        sb.append("Reference (Coin):\n$coinDesc\n\n")
+                        sb.append(context.getString(R.string.reference_coin_description, coinDesc))
                     }
 
                     // Draw Target Fish
@@ -90,7 +90,7 @@ class DrawImages(private val context: Context) {
                         pixelsPerCm,
                         isCoin = false
                     )
-                    sb.append("Fish ${index + 1}:\n$fishDesc")
+                    sb.append(context.getString(R.string.fish_description, index + 1, fishDesc))
 
                     outputList.add(AnalysisResult(original, overlay, sb.toString()))
                 }
@@ -105,7 +105,7 @@ class DrawImages(private val context: Context) {
                     pixelsPerCm,
                     isCoin = true
                 )
-                outputList.add(AnalysisResult(original, overlay, "Reference Only:\n$coinDesc"))
+                outputList.add(AnalysisResult(original, overlay, context.getString(R.string.reference_only_description, coinDesc)))
             }
 
             return outputList
@@ -127,7 +127,7 @@ class DrawImages(private val context: Context) {
                     pixelsPerCm,
                     isCoin = true
                 )
-                sb.append("Reference:\n$desc\n\n")
+                sb.append(context.getString(R.string.reference_description, desc))
             }
 
             // Draw Fish
@@ -142,7 +142,7 @@ class DrawImages(private val context: Context) {
                     pixelsPerCm,
                     isCoin = false
                 )
-                sb.append("Fish ${index + 1}:\n$desc\n\n")
+                sb.append(context.getString(R.string.fish_description, index + 1, desc))
             }
 
             return listOf(AnalysisResult(original, combined, sb.toString()))
@@ -206,15 +206,11 @@ class DrawImages(private val context: Context) {
         var detailedInfo = ""
 
         if (isCoin) {
-            displayText = "Coin (10Rs) | Dia: ${f(lengthCm)}cm"
-            detailedInfo = """
-                Type: 10 Rupee Coin
-                Dimensions: ${f(lengthCm)}cm x ${f(widthCm)}cm
-                Est. Scale: ${f(lengthPx.toDouble()/2.7)} px/cm
-            """.trimIndent()
+            displayText = context.getString(R.string.coin_display_text, f(lengthCm))
+            detailedInfo = context.getString(R.string.coin_detailed_info, f(lengthCm), f(widthCm), f(lengthPx.toDouble()/2.7))
         } else {
             // Fish Identification
-            var bestName = "Unknown"
+            var bestName = context.getString(R.string.unknown)
             if (speciesBoxes.isNotEmpty()) {
                 val maskRect = RectF(box.x1, box.y1, box.x2, box.y2)
                 var maxIoU = 0.0f
@@ -243,15 +239,9 @@ class DrawImages(private val context: Context) {
             val depthCm = widthCm * bio.ratio
             val volumeCm3 = areaCm2 * depthCm
 
-            displayText = "$bestName | ${f0(weightG)}g"
+            displayText = context.getString(R.string.fish_display_text, bestName, f0(weightG))
 
-            detailedInfo = """
-                Species: $bestName
-                Dim: L:${f(lengthCm)}cm x W:${f(widthCm)}cm
-                Const: a=${bio.a}, b=${bio.b}
-                Est. Weight: ${f0(weightG)}g
-                Est. Volume: ${f0(volumeCm3)}cm³
-            """.trimIndent()
+            detailedInfo = context.getString(R.string.fish_detailed_info, bestName, f(lengthCm), f(widthCm), bio.a, bio.b, f0(weightG), f0(volumeCm3))
         }
 
         val xPos = left

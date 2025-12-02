@@ -23,7 +23,7 @@
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:background="@color/black"
-        android:contentDescription="Gallery Image"
+        android:contentDescription="@string/gallery_image"
         android:scaleType="fitCenter"
         android:visibility="gone"
         app:layout_constraintBottom_toTopOf="@+id/detectionPanel"
@@ -92,7 +92,7 @@
             android:id="@+id/detectionTitle"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:text="Detection Results"
+            android:text="@string/detection_results"
             android:textColor="@color/black"
             android:textSize="20sp"
             android:textStyle="bold"
@@ -110,14 +110,14 @@
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/detectionTitle"
-            tools:text="Total Detected: 5" />
+            tools:text="@string/total_detected_placeholder" />
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/detectionList"
             android:layout_width="0dp"
             android:layout_height="0dp"
             android:layout_marginTop="16dp"
-            app:layout_constraintBottom_toTopOf="@+id/gpuToggleLayout"
+            app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/totalCountLabel" />
@@ -126,35 +126,16 @@
             android:id="@+id/noDetectionText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="No fish detected"
+            android:text="@string/no_fish_detected"
             android:textColor="#999"
             android:textSize="16sp"
             android:visibility="gone"
-            app:layout_constraintBottom_toTopOf="@+id/gpuToggleLayout"
+            app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/totalCountLabel" />
 
-        <LinearLayout
-            android:id="@+id/gpuToggleLayout"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:orientation="horizontal"
-            android:paddingVertical="8dp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent">
 
-            <ToggleButton
-                android:id="@+id/isGpu"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@color/orange"
-                android:textColor="@color/white"
-                android:textOff="@string/gpu"
-                android:textOn="@string/gpu" />
-        </LinearLayout>
     </androidx.constraintlayout.widget.ConstraintLayout>
 
     <com.google.android.material.card.MaterialCardView
@@ -183,7 +164,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="16dp"
-                android:text="Save this capture?"
+                android:text="@string/save_this_capture"
                 android:textColor="@color/black"
                 android:textSize="18sp"
                 android:textStyle="bold" />
@@ -201,7 +182,7 @@
                     android:layout_marginEnd="12dp"
                     android:layout_weight="1"
                     android:backgroundTint="#FF5252"
-                    android:text="Discard"
+                    android:text="@string/discard"
                     android:textColor="@color/white" />
 
                 <Button
@@ -210,7 +191,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:backgroundTint="#4CAF50"
-                    android:text="Save"
+                    android:text="@string/save"
                     android:textColor="@color/white" />
             </LinearLayout>
         </LinearLayout>

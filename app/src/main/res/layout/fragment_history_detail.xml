@@ -30,7 +30,7 @@
                 android:id="@+id/detailDate"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Date"
+                android:text="@string/date"
                 android:textColor="#757575"
                 android:textSize="14sp" />
 
@@ -39,7 +39,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:text="Result Title"
+                android:text="@string/result_title"
                 android:textColor="@color/black"
                 android:textSize="22sp"
                 android:textStyle="bold" />
@@ -50,7 +50,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:drawablePadding="8dp"
-                android:text="Location"
+                android:text="@string/location"
                 android:textColor="#555"
                 android:textSize="16sp"
                 app:drawableStartCompat="@android:drawable/ic_dialog_map" />
@@ -73,7 +73,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="24dp"
-                android:text="Detailed Logs"
+                android:text="@string/detailed_logs"
                 android:textColor="@color/black"
                 android:textSize="18sp"
                 android:textStyle="bold" />
@@ -86,7 +86,7 @@
                 android:background="#F5F5F5"
                 android:fontFamily="monospace"
                 android:padding="12dp"
-                android:text="Raw Details..."
+                android:text="@string/raw_details"
                 android:textColor="#333"
                 android:textSize="14sp" />
 

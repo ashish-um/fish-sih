@@ -5,6 +5,7 @@ import android.content.Context
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import com.surendramaran.yolov8tflite.R
 
 data class HistoryItem(
     val id: Int,
@@ -19,7 +20,7 @@ data class HistoryItem(
     val isSynced: Int = 0 // New field
 )
 
-class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
+class DatabaseHelper(private val context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
 
     override fun onCreate(db: SQLiteDatabase) {
         val createTable = ("CREATE TABLE " + TABLE_NAME + "("
@@ -117,7 +118,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         val lng = cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_LNG))
 
         val placeNameIndex = cursor.getColumnIndex(COLUMN_PLACE_NAME)
-        val placeName = if (placeNameIndex != -1) cursor.getString(placeNameIndex) else "Unknown"
+        val placeName = if (placeNameIndex != -1) cursor.getString(placeNameIndex) else context.getString(R.string.unknown)
 
         val typeIndex = cursor.getColumnIndex(COLUMN_TYPE)
         val itemType = if(typeIndex != -1) cursor.getInt(typeIndex) else 0

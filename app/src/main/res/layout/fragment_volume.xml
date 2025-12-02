@@ -13,7 +13,7 @@
             android:id="@+id/tvTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Volume Estimation"
+            android:text="@string/volume_estimation"
             android:textSize="18sp"
             android:textStyle="bold"
             android:layout_margin="32dp"
@@ -56,7 +56,7 @@
             android:id="@+id/tvNoFish"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="No fish detected"
+            android:text="@string/no_fish_detected"
             android:textColor="#757575"
             android:textSize="18sp"
             android:textStyle="bold"
@@ -124,7 +124,7 @@
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnCamera"
                         app:icon="@drawable/ic_camera"
-                        android:text="Camera"
+                        android:text="@string/camera"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
@@ -133,7 +133,7 @@
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnGallery"
                         app:icon="@drawable/ic_image"
-                        android:text="Gallery"
+                        android:text="@string/gallery"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
@@ -141,7 +141,7 @@
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnSave"
-                        android:text="Save"
+                        android:text="@string/save"
                         android:visibility="gone"
                         android:backgroundTint="#4CAF50"
                         android:layout_width="0dp"
@@ -181,7 +181,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="16dp"
-                    android:text="Save this Volume Analysis?"
+                    android:text="@string/save_this_volume_analysis"
                     android:textColor="@color/black"
                     android:textSize="18sp"
                     android:textStyle="bold" />
@@ -199,7 +199,7 @@
                         android:layout_marginEnd="12dp"
                         android:layout_weight="1"
                         android:backgroundTint="#FF5252"
-                        android:text="Discard"
+                        android:text="@string/discard"
                         android:textColor="@color/white" />
 
                     <Button
@@ -208,7 +208,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:backgroundTint="#4CAF50"
-                        android:text="Confirm"
+                        android:text="@string/confirm"
                         android:textColor="@color/white" />
                 </LinearLayout>
             </LinearLayout>

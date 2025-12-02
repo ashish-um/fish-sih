@@ -16,6 +16,6 @@
         android:layout_gravity="bottom|end"
         android:layout_margin="16dp"
         android:src="@android:drawable/ic_menu_mylocation"
-        android:contentDescription="Center Map" />
+        android:contentDescription="@string/center_map" />
 
 </FrameLayout>

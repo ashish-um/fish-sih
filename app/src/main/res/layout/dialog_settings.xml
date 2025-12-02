@@ -36,7 +36,7 @@
                 android:id="@+id/cbCoinReference"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Use 10 ₹ Coin Reference"
+                android:text="@string/use_coin_reference"
                 android:textSize="12sp"      />
 
                 <LinearLayout

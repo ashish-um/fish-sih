@@ -23,7 +23,7 @@
         android:layout_height="wrap_content"
         android:layout_margin="16dp"
         android:src="@android:drawable/arrow_down_float"
-        android:contentDescription="Scroll to bottom"
+        android:contentDescription="@string/scroll_to_bottom"
         android:visibility="gone"
         app:backgroundTint="#007AFF"
         app:tint="#FFFFFF"
@@ -46,7 +46,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:hint="Ask about fish..."
+            android:hint="@string/ask_about_fish"
             android:padding="12dp"
             android:background="@android:color/transparent" />
 
@@ -54,7 +54,7 @@
             android:id="@+id/btnSend"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Send" />
+            android:text="@string/send" />
     </LinearLayout>
 
     <LinearLayout
@@ -75,7 +75,7 @@
             android:id="@+id/tvProgress"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Model not found"
+            android:text="@string/model_not_found_title"
             android:textColor="#FFFFFF"
             android:textSize="18sp"
             android:gravity="center"
@@ -85,7 +85,7 @@
             android:id="@+id/tvDownloadLink"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Tap here to Download Model"
+            android:text="@string/download_model_link"
             android:textColor="#448AFF"
             android:textStyle="bold"
             android:textSize="16sp"
@@ -100,7 +100,7 @@
             android:id="@+id/btnLoadModel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Select Model File" />
+            android:text="@string/select_model_file" />
 
         <ProgressBar
             android:id="@+id/progressBar"

@@ -53,7 +53,7 @@ class MapFragment : Fragment() {
             permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true) {
             setupLocationOverlay()
         } else {
-            Toast.makeText(context, "Location permission denied", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, getString(R.string.location_permission_denied), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -108,7 +108,7 @@ class MapFragment : Fragment() {
                 map.controller.animateTo(myLoc)
                 map.controller.setZoom(15.0)
             } else {
-                Toast.makeText(context, "Waiting for GPS Signal...", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, getString(R.string.waiting_for_gps), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -124,8 +124,8 @@ class MapFragment : Fragment() {
                 marker.position = GeoPoint(item.lat, item.lng)
                 marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
 
-                marker.title = "Catch: ${item.title}"
-                marker.subDescription = "Date: ${Date(item.timestamp)}"
+                marker.title = getString(R.string.catch_title, item.title)
+                marker.subDescription = getString(R.string.date_title, Date(item.timestamp).toString())
 
                 // 1. Get image path
                 val firstPath = item.imagePath.split("|").firstOrNull() ?: ""
@@ -154,7 +154,7 @@ class MapFragment : Fragment() {
                             }
                         }
                     } catch (e: Exception) {
-                        Log.e("MapFragment", "Error loading image for marker", e)
+                        Log.e("MapFragment", getString(R.string.error_loading_marker_image), e)
                     }
                 }
 
@@ -218,7 +218,7 @@ class MapFragment : Fragment() {
             return BitmapDrawable(resources, output)
 
         } catch (e: Exception) {
-            Log.e("MapFragment", "Failed to create circular marker", e)
+            Log.e("MapFragment", getString(R.string.failed_to_create_circular_marker), e)
             return null
         }
     }
@@ -299,7 +299,7 @@ class MapFragment : Fragment() {
             parseGeoJson("pfz.json", Color.YELLOW, 6f, isPolygon = false)
             loadLandingCenters("landing.json")
         } catch (e: Exception) {
-            Log.e("MapFragment", "Error loading layers", e)
+            Log.e("MapFragment", getString(R.string.error_loading_layers), e)
         }
     }
 
@@ -331,7 +331,7 @@ class MapFragment : Fragment() {
                 }
             }
         } catch (e: Exception) {
-            Log.e("MapFragment", "Failed to parse $filename", e)
+            Log.e("MapFragment", getString(R.string.failed_to_parse_file, filename), e)
         }
     }
 
@@ -376,7 +376,7 @@ class MapFragment : Fragment() {
                 val coord = geometry.getJSONArray("coordinates")
                 val lat = coord.getDouble(1)
                 val lon = coord.getDouble(0)
-                val name = feature.optJSONObject("properties")?.optString("name") ?: "Port"
+                val name = feature.optJSONObject("properties")?.optString("name") ?: getString(R.string.port)
 
                 val marker = Marker(map)
                 marker.position = GeoPoint(lat, lon)
@@ -386,7 +386,7 @@ class MapFragment : Fragment() {
                 map.overlays.add(marker)
             }
         } catch (e: Exception) {
-            Log.e("MapFragment", "Failed to load ports", e)
+            Log.e("MapFragment", getString(R.string.failed_to_load_ports), e)
         }
     }
 

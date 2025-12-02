@@ -9,7 +9,7 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="More Tools"
+        android:text="@string/more_tools"
         android:textSize="24sp"
         android:textStyle="bold"
         android:textColor="@color/black"
@@ -19,7 +19,7 @@
         android:id="@+id/btn_history"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="History"
+        android:text="@string/history"
         android:drawableStart="@android:drawable/ic_menu_recent_history"
         android:drawablePadding="12dp"
         android:gravity="start|center_vertical"
@@ -31,7 +31,7 @@
         android:id="@+id/btn_map"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="ISRO Map"
+        android:text="@string/isro_map"
         android:drawableStart="@android:drawable/ic_dialog_map"
         android:drawablePadding="12dp"
         android:gravity="start|center_vertical"
@@ -43,11 +43,34 @@
         android:id="@+id/btn_chat"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Ask AI"
+        android:text="@string/ask_ai"
         android:drawableStart="@android:drawable/ic_menu_help"
         android:drawablePadding="12dp"
         android:gravity="start|center_vertical"
         android:padding="16dp"
         android:textSize="16sp"/>
+
+    <Button
+        android:id="@+id/btn_language"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/change_language"
+        android:drawableStart="@android:drawable/ic_menu_sort_by_size"
+        android:drawablePadding="12dp"
+        android:gravity="start|center_vertical"
+        android:padding="16dp"
+        android:textSize="16sp"/>
+
+    <Button
+        android:id="@+id/btn_profile"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="My Profile"
+        android:drawableStart="@android:drawable/ic_menu_myplaces"
+        android:drawablePadding="12dp"
+        android:gravity="start|center_vertical"
+        android:padding="16dp"
+        android:textSize="16sp"
+        android:layout_marginBottom="12dp"/>
 
 </LinearLayout>

@@ -66,11 +66,11 @@ class HistoryDetailFragment : Fragment() {
         dateView.text = sdf.format(Date(timestamp))
 
         if (lat != 0.0 && lng != 0.0) {
-            locationView.text = String.format("Lat: %.4f, Lng: %.4f", lat, lng)
+            locationView.text = getString(R.string.lat_lng_location, lat, lng)
             mapCard.visibility = View.VISIBLE
             setupMiniMap(lat, lng)
         } else {
-            locationView.text = "Location data not available"
+            locationView.text = getString(R.string.location_data_not_available)
             mapCard.visibility = View.GONE
         }
 

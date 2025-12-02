@@ -25,7 +25,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="24dp"
                 android:gravity="center_horizontal"
-                android:text="Freshness AI"
+                android:text="@string/freshness_ai"
                 android:textColor="#000000"
                 android:textSize="28sp"
                 android:textStyle="bold" />
@@ -51,7 +51,7 @@
                         android:layout_height="wrap_content"
                         android:layout_gravity="center_horizontal"
                         android:layout_marginBottom="12dp"
-                        android:text="Step 1: Inspect Eyes"
+                        android:text="@string/step_1_inspect_eyes"
                         android:textColor="#000000"
                         android:textSize="18sp"
                         android:textStyle="bold" />
@@ -71,7 +71,19 @@
                                 android:id="@+id/viewFinderEyes"
                                 android:layout_width="match_parent"
                                 android:layout_height="match_parent"
+                                android:visibility="invisible"
                                 app:scaleType="fillCenter" />
+
+                            <VideoView
+                                android:id="@+id/videoInstructionsEyes"
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:layout_gravity="center"
+                                android:visibility="visible"
+                                app:layout_constraintBottom_toBottomOf="parent"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent"
+                                app:layout_constraintTop_toTopOf="parent" />
 
                             <ImageView
                                 android:id="@+id/imgEyes"
@@ -125,7 +137,7 @@
                         android:layout_height="wrap_content"
                         android:layout_gravity="center_horizontal"
                         android:layout_marginTop="12dp"
-                        android:text="Ready to scan"
+                        android:text="@string/ready_to_scan"
                         android:textColor="#757575"
                         android:textSize="14sp"
                         android:textStyle="bold" />
@@ -153,7 +165,7 @@
                         android:layout_height="wrap_content"
                         android:layout_gravity="center_horizontal"
                         android:layout_marginBottom="12dp"
-                        android:text="Step 2: Inspect Gills"
+                        android:text="@string/step_2_inspect_gills"
                         android:textColor="#000000"
                         android:textSize="18sp"
                         android:textStyle="bold" />
@@ -173,7 +185,19 @@
                                 android:id="@+id/viewFinderGills"
                                 android:layout_width="match_parent"
                                 android:layout_height="match_parent"
+                                android:visibility="invisible"
                                 app:scaleType="fillCenter" />
+
+                            <VideoView
+                                android:id="@+id/videoInstructionsGills"
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:layout_gravity="center"
+                                android:visibility="visible"
+                                app:layout_constraintBottom_toBottomOf="parent"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent"
+                                app:layout_constraintTop_toTopOf="parent" />
 
                             <ImageView
                                 android:id="@+id/imgGills"
@@ -227,7 +251,7 @@
                         android:layout_height="wrap_content"
                         android:layout_gravity="center_horizontal"
                         android:layout_marginTop="12dp"
-                        android:text="Ready to scan"
+                        android:text="@string/ready_to_scan"
                         android:textColor="#757575"
                         android:textSize="14sp"
                         android:textStyle="bold" />
@@ -255,7 +279,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:letterSpacing="0.1"
-                        android:text="FINAL VERDICT"
+                        android:text="@string/final_verdict"
                         android:textColor="#FFFFFF"
                         android:textSize="14sp"
                         android:textStyle="bold" />
@@ -266,7 +290,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
                         android:gravity="center"
-                        android:text="Scan both parts"
+                        android:text="@string/scan_both_parts"
                         android:textColor="#FFFFFF"
                         android:textSize="22sp"
                         android:textStyle="bold" />
@@ -277,7 +301,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
                         android:backgroundTint="#FFFFFF"
-                        android:text="Save Record"
+                        android:text="@string/save_record"
                         android:textColor="#000000"
                         android:visibility="gone" />
                 </LinearLayout>
@@ -312,7 +336,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="16dp"
-                android:text="Save this Freshness Log?"
+                android:text="@string/save_this_freshness_log"
                 android:textColor="@color/black"
                 android:textSize="18sp"
                 android:textStyle="bold" />
@@ -330,7 +354,7 @@
                     android:layout_marginEnd="12dp"
                     android:layout_weight="1"
                     android:backgroundTint="#FF5252"
-                    android:text="Cancel"
+                    android:text="@string/cancel"
                     android:textColor="@color/white" />
 
                 <Button
@@ -339,7 +363,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:backgroundTint="#4CAF50"
-                    android:text="Save"
+                    android:text="@string/save"
                     android:textColor="@color/white" />
             </LinearLayout>
         </LinearLayout>

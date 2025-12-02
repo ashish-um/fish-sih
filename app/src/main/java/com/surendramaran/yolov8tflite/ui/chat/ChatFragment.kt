@@ -94,7 +94,7 @@ class ChatFragment : Fragment(R.layout.fragment_chat) {
                 try {
                     startActivity(intent)
                 } catch (e2: Exception) {
-                    Toast.makeText(context, "No browser found to download file.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, getString(R.string.no_browser_found), Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -114,7 +114,7 @@ class ChatFragment : Fragment(R.layout.fragment_chat) {
             initializeLlm()
         } else {
             progressOverlay.visibility = View.VISIBLE
-            tvProgress.text = "Model not found."
+            tvProgress.text = getString(R.string.model_not_found_short)
             // Show buttons
             btnLoadModel.visibility = View.VISIBLE
             tvDownloadLink.visibility = View.VISIBLE
@@ -123,7 +123,7 @@ class ChatFragment : Fragment(R.layout.fragment_chat) {
     }
 
     private fun loadModelFromUri(uri: Uri) {
-        tvProgress.text = "Initializing copy..."
+        tvProgress.text = getString(R.string.initializing_copy)
         // Hide buttons while copying
         btnLoadModel.visibility = View.GONE
         tvDownloadLink.visibility = View.GONE
@@ -133,16 +133,16 @@ class ChatFragment : Fragment(R.layout.fragment_chat) {
         lifecycleScope.launch(Dispatchers.IO) {
             val success = modelManager.copyModelFromUri(uri) { progress ->
                 launch(Dispatchers.Main) {
-                    tvProgress.text = "Copying model: $progress%"
+                    tvProgress.text = getString(R.string.copying_model_progress, progress)
                 }
             }
 
             withContext(Dispatchers.Main) {
                 if (success) {
-                    tvProgress.text = "Copy Complete!"
+                    tvProgress.text = getString(R.string.copy_complete)
                     checkAndInitModel()
                 } else {
-                    tvProgress.text = "Failed to copy file. Try again."
+                    tvProgress.text = getString(R.string.failed_to_copy_file)
                     btnLoadModel.visibility = View.VISIBLE
                     tvDownloadLink.visibility = View.VISIBLE
                     progressBar.visibility = View.GONE
@@ -176,13 +176,13 @@ class ChatFragment : Fragment(R.layout.fragment_chat) {
                 llmHelper.initModel()
 
                 launch(Dispatchers.Main) {
-                    chatAdapter.addMessage("Fish AI Ready! Ask me anything.", false)
+                    chatAdapter.addMessage(getString(R.string.fish_ai_ready), false)
                     progressOverlay.visibility = View.GONE
                 }
             } catch (e: Throwable) {
                 launch(Dispatchers.Main) {
                     progressOverlay.visibility = View.VISIBLE
-                    tvProgress.text = "Error: RAM too low or Model invalid.\n${e.message}"
+                    tvProgress.text = getString(R.string.error_ram_low_or_model_invalid, e.message)
                     btnLoadModel.visibility = View.VISIBLE
                     tvDownloadLink.visibility = View.VISIBLE
                     progressBar.visibility = View.GONE
@@ -213,7 +213,7 @@ class ChatFragment : Fragment(R.layout.fragment_chat) {
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    chatAdapter.updateLastMessage("Error: ${e.message}")
+                    chatAdapter.updateLastMessage(getString(R.string.chat_error, e.message))
                 }
             }
         }

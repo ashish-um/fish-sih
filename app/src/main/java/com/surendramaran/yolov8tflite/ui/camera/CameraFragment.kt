@@ -85,7 +85,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             resultUri?.let { processGalleryImage(it) }
         } else if (result.resultCode == UCrop.RESULT_ERROR) {
             val error = UCrop.getError(result.data!!)
-            Toast.makeText(context, "Crop error: ${error?.message}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, getString(R.string.crop_error_with_message, error?.message), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -128,15 +128,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
 
     private fun bindListeners() {
         binding.apply {
-            isGpu.setOnCheckedChangeListener { buttonView, isChecked ->
-                cameraExecutor.submit { detector?.restart(isGpu = isChecked) }
-                buttonView.setBackgroundColor(
-                    ContextCompat.getColor(
-                        requireContext(),
-                        if (isChecked) R.color.orange else R.color.gray
-                    )
-                )
-            }
 
             btnDialogSave.setOnClickListener {
                 saveCurrentDetection()
@@ -180,12 +171,12 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             val destFile = File(requireContext().cacheDir, "cropped_cam_${System.currentTimeMillis()}.jpg")
             val destUri = Uri.fromFile(destFile)
             val options = UCrop.Options()
-            options.setToolbarTitle("Crop for AI")
+            options.setToolbarTitle(getString(R.string.crop_for_ai))
             options.setFreeStyleCropEnabled(true)
             val uCrop = UCrop.of(sourceUri, destUri).withOptions(options)
             cropImage.launch(uCrop.getIntent(requireContext()))
         } catch (e: Exception) {
-            Log.e(TAG, "Error starting crop", e)
+            Log.e(TAG, getString(R.string.error_starting_crop), e)
         }
     }
 
@@ -208,7 +199,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
 
             cameraExecutor.execute { detector?.detect(bitmap) }
         } catch (e: Exception) {
-            Log.e(TAG, "Error loading gallery image", e)
+            Log.e(TAG, getString(R.string.error_loading_gallery_image), e)
         }
     }
 
@@ -232,7 +223,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
     }
 
     private fun bindCameraUseCases() {
-        val cameraProvider = cameraProvider ?: throw IllegalStateException("Camera initialization failed.")
+        val cameraProvider = cameraProvider ?: throw IllegalStateException(getString(R.string.camera_init_failed))
         val rotation = view?.display?.rotation ?: Surface.ROTATION_0
 
         val viewWidth = binding.viewFinder.width
@@ -286,7 +277,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             )
             preview?.setSurfaceProvider(binding.viewFinder.surfaceProvider)
         } catch (exc: Exception) {
-            Log.e(TAG, "Use case binding failed", exc)
+            Log.e(TAG, getString(R.string.use_case_binding_failed), exc)
         }
     }
 
@@ -328,7 +319,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
 
         var currentLat = 0.0
         var currentLng = 0.0
-        var placeName = "Location not available"
+        var placeName = getString(R.string.location_not_available)
 
         try {
             if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
@@ -353,16 +344,16 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                                 placeName = address.getAddressLine(0)
                             }
                         } else {
-                            placeName = "Lat: %.4f, Lng: %.4f".format(currentLat, currentLng)
+                            placeName = getString(R.string.lat_lng_location, currentLat, currentLng)
                         }
                     } catch (e: Exception) {
-                        Log.e(TAG, "Geocoder failed", e)
-                        placeName = "Lat: %.4f, Lng: %.4f".format(currentLat, currentLng)
+                        Log.e(TAG, getString(R.string.geocoder_failed), e)
+                        placeName = getString(R.string.lat_lng_location, currentLat, currentLng)
                     }
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Location error", e)
+            Log.e(TAG, getString(R.string.location_error), e)
         }
 
         try {
@@ -391,7 +382,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                 val bottom = box.y2 * mutableBitmap.height
 
                 canvas.drawRect(left, top, right, bottom, boxPaint)
-                val text = "${box.clsName} ${String.format("%.2f", box.cnf)}"
+                val text = getString(R.string.box_confidence, box.clsName, box.cnf)
                 val bounds = Rect()
                 textPaint.getTextBounds(text, 0, text.length, bounds)
 
@@ -412,21 +403,21 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             dbHelper.insertDetection(
                 timestamp = System.currentTimeMillis(),
                 imagePath = file.absolutePath,
-                fishCount = fishCounts.ifEmpty { "None" },
+                fishCount = fishCounts.ifEmpty { getString(R.string.none) },
                 details = details,
                 lat = currentLat,
                 lng = currentLng,
                 placeName = placeName
             )
 
-            Toast.makeText(context, "Saved at $placeName!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, getString(R.string.saved_at_place, placeName), Toast.LENGTH_SHORT).show()
 
             // TRIGGER SYNC HERE
             triggerBackgroundSync()
 
         } catch (e: Exception) {
-            Log.e(TAG, "Error saving detection", e)
-            Toast.makeText(context, "Error saving: ${e.message}", Toast.LENGTH_SHORT).show()
+            Log.e(TAG, getString(R.string.error_saving_detection), e)
+            Toast.makeText(context, getString(R.string.error_saving, e.message), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -468,7 +459,9 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
     override fun onDestroy() {
         super.onDestroy()
         detector?.close()
-        cameraExecutor.shutdown()
+        if (::cameraExecutor.isInitialized) {
+            cameraExecutor.shutdown()
+        }
     }
 
     override fun onEmptyDetect() {
@@ -476,7 +469,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         activity?.runOnUiThread {
             if (_binding != null) {
                 binding.overlay.clear()
-                binding.totalCountLabel.text = "Total Detected: 0"
+                binding.totalCountLabel.text = getString(R.string.total_detected, 0)
                 binding.noDetectionText.visibility = View.VISIBLE
                 binding.detectionList.visibility = View.GONE
                 detectionAdapter.updateDetections(emptyList())
@@ -488,7 +481,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         lastResults = boundingBoxes
         activity?.runOnUiThread {
             if (_binding != null) {
-                binding.inferenceTime.text = "${inferenceTime}ms"
+                binding.inferenceTime.text = getString(R.string.inference_time_ms, inferenceTime)
                 binding.overlay.apply {
                     setResults(boundingBoxes)
                     invalidate()
@@ -497,7 +490,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                     .map { (name, boxes) -> DetectionItem(name, boxes.size) }
                     .sortedByDescending { it.count }
 
-                binding.totalCountLabel.text = "Total Detected: ${boundingBoxes.size}"
+                binding.totalCountLabel.text = getString(R.string.total_detected, boundingBoxes.size)
                 if (fishCounts.isEmpty()) {
                     binding.noDetectionText.visibility = View.VISIBLE
                     binding.detectionList.visibility = View.GONE

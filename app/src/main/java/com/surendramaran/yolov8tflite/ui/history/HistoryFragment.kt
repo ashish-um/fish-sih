@@ -58,9 +58,9 @@ class HistoryFragment : Fragment() {
 
         if (data.isEmpty()) {
             emptyText.text = when(currentType) {
-                DatabaseHelper.TYPE_FRESHNESS -> "No Freshness Logs"
-                DatabaseHelper.TYPE_VOLUME -> "No Volume Logs"
-                else -> "No Detections Found"
+                DatabaseHelper.TYPE_FRESHNESS -> getString(R.string.no_freshness_logs)
+                DatabaseHelper.TYPE_VOLUME -> getString(R.string.no_volume_logs)
+                else -> getString(R.string.no_detections_found)
             }
             emptyText.visibility = View.VISIBLE
             recyclerView.visibility = View.GONE

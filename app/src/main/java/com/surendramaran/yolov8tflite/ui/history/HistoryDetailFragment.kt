@@ -14,9 +14,13 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.appcompat.widget.Toolbar
 import androidx.fragment.app.Fragment
+import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
+import com.google.android.material.chip.Chip
+import com.google.android.material.chip.ChipGroup
 import com.surendramaran.yolov8tflite.R
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
@@ -41,51 +45,85 @@ class HistoryDetailFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        // Setup Toolbar Back Action
+        val toolbar: Toolbar = view.findViewById(R.id.toolbar)
+        toolbar.setNavigationOnClickListener {
+            findNavController().navigateUp()
+        }
+
         val imagePathRaw = arguments?.getString("imagePath") ?: ""
         val timestamp = arguments?.getLong("timestamp") ?: 0L
-        val title = arguments?.getString("fishCount")
+        val titleRaw = arguments?.getString("fishCount") ?: ""
         val detailsRaw = arguments?.getString("details") ?: ""
 
         val placeName = arguments?.getString("placeName") ?: getString(R.string.unknown)
-        // FIX: Retrieve as Float and convert to Double
         val lat = arguments?.getFloat("lat")?.toDouble() ?: 0.0
         val lng = arguments?.getFloat("lng")?.toDouble() ?: 0.0
 
         val viewPager: ViewPager2 = view.findViewById(R.id.detailImagePager)
+        val titleView: TextView = view.findViewById(R.id.detailTitle)
         val dateView: TextView = view.findViewById(R.id.detailDate)
-        val locationView: TextView = view.findViewById(R.id.detailLocation)
-        val countsView: TextView = view.findViewById(R.id.detailCounts)
+
+        val placeNameView: TextView = view.findViewById(R.id.detailPlaceName)
+        val coordsView: TextView = view.findViewById(R.id.detailCoords)
+
         val rawView: TextView = view.findViewById(R.id.detailRaw)
         val mapCard: View = view.findViewById(R.id.mapCard)
+        val chipGroup: ChipGroup = view.findViewById(R.id.resultChipGroup)
+
         miniMap = view.findViewById(R.id.miniMap)
 
-        // Split paths and descriptions
+        // 1. Setup Images
         val imagePaths = imagePathRaw.split("|").filter { it.isNotEmpty() }
         val descriptionList = detailsRaw.split(";;;")
-
         viewPager.adapter = ImagePagerAdapter(imagePaths, descriptionList)
 
-        val sdf = SimpleDateFormat("MMMM dd, yyyy • hh:mm a", Locale.getDefault())
+        // 2. Setup Header Info
+        val sdf = SimpleDateFormat("MMM dd, yyyy • hh:mm a", Locale.getDefault())
         dateView.text = sdf.format(Date(timestamp))
 
-        if (lat != 0.0 && lng != 0.0) {
-            // Use the place name if valid, otherwise use coordinates
-            if (placeName != getString(R.string.unknown) && placeName != getString(R.string.location_not_available)) {
-                locationView.text = placeName
-            } else {
-                locationView.text = getString(R.string.lat_lng_location, lat, lng)
+        // Use a generic title if we are going to show chips, otherwise use the raw title
+        if (titleRaw.contains(",")) {
+            titleView.text = "Analysis Report"
+        } else {
+            titleView.text = titleRaw.ifEmpty { "Detection Result" }
+        }
+
+        // 3. Setup Smart Chips (Parse the "Rohu: 2, Catla: 1" string)
+        chipGroup.removeAllViews()
+        if (titleRaw.isNotEmpty()) {
+            val items = titleRaw.split(",").map { it.trim() }
+            for (item in items) {
+                if (item.isNotEmpty()) {
+                    val chip = Chip(requireContext())
+                    chip.text = item
+                    chip.setChipBackgroundColorResource(R.color.white)
+                    chip.setChipStrokeColorResource(R.color.primary)
+                    chip.chipStrokeWidth = 2f
+                    chip.textSize = 14f
+                    chip.setTextColor(resources.getColor(R.color.black, null))
+                    chip.isClickable = false
+                    chipGroup.addView(chip)
+                }
             }
+        } else {
+            val chip = Chip(requireContext())
+            chip.text = "No Detections"
+            chipGroup.addView(chip)
+        }
+
+        // 4. Setup Location
+        if (lat != 0.0 && lng != 0.0) {
+            placeNameView.text = if (placeName != getString(R.string.unknown)) placeName else "Unknown Location"
+            coordsView.text = String.format("%.4f, %.4f", lat, lng)
 
             mapCard.visibility = View.VISIBLE
             setupMiniMap(lat, lng)
         } else {
-            locationView.text = getString(R.string.location_data_not_available)
             mapCard.visibility = View.GONE
         }
 
-        countsView.text = title
-
-        // Show raw details string as fallback in the bottom view
+        // 5. Raw Details
         rawView.text = detailsRaw.replace(";;;", "\n\n")
     }
 
@@ -93,7 +131,7 @@ class HistoryDetailFragment : Fragment() {
         miniMap?.apply {
             setTileSource(TileSourceFactory.MAPNIK)
             setMultiTouchControls(true)
-            controller.setZoom(10.0)
+            controller.setZoom(14.0)
             val point = GeoPoint(lat, lng)
             controller.setCenter(point)
 
@@ -103,6 +141,7 @@ class HistoryDetailFragment : Fragment() {
             marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
             overlays.add(marker)
 
+            // Disable interception so NestedScrollView handles scrolling
             setOnTouchListener { v, event ->
                 when (event.action) {
                     MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> v.parent.requestDisallowInterceptTouchEvent(true)
@@ -145,7 +184,6 @@ class HistoryDetailFragment : Fragment() {
                 holder.img.setImageResource(android.R.drawable.ic_menu_gallery)
             }
 
-            // Set specific description for this image
             val detailText = descriptions.getOrElse(position) { "" }
             if (detailText.isNotEmpty()) {
                 holder.desc.text = detailText

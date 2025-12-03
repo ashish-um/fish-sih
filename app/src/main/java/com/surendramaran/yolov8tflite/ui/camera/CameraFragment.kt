@@ -17,6 +17,8 @@ import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
+import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import android.view.Surface
 import android.view.View
 import android.view.ViewGroup
@@ -129,13 +131,44 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
     private fun bindListeners() {
         binding.apply {
 
+            // --- ZOOM LOGIC START ---
+            val scaleGestureDetector = ScaleGestureDetector(requireContext(), object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                override fun onScale(detector: ScaleGestureDetector): Boolean {
+                    val zoomState = camera?.cameraInfo?.zoomState?.value ?: return false
+                    val currentZoomRatio = zoomState.zoomRatio
+                    val delta = detector.scaleFactor
+                    val newZoomRatio = currentZoomRatio * delta
+
+                    camera?.cameraControl?.setZoomRatio(newZoomRatio)
+
+                    // Update UI
+                    val roundedZoom = String.format("%.1fx", newZoomRatio)
+                    zoomLevel.text = roundedZoom
+                    zoomLevel.visibility = View.VISIBLE
+
+                    // Auto-hide
+                    zoomLevel.removeCallbacks { zoomLevel.visibility = View.GONE }
+                    zoomLevel.postDelayed({
+                        if (_binding != null) zoomLevel.visibility = View.GONE
+                    }, 2000)
+
+                    return true
+                }
+            })
+
+            viewFinder.setOnTouchListener { _, event ->
+                scaleGestureDetector.onTouchEvent(event)
+                return@setOnTouchListener true
+            }
+            // --- ZOOM LOGIC END ---
+
             btnDialogSave.setOnClickListener {
                 saveCurrentDetection()
                 saveDialog.visibility = View.GONE
             }
 
             btnDialogDiscard.setOnClickListener {
-                restartCameraPreview()
+                showPausedState()
             }
 
             btnGallery.setOnClickListener {
@@ -143,27 +176,45 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             }
 
             fab.setOnClickListener {
+                // 1. If paused/reviewing, resume camera
                 if (binding.imagePreview.visibility == View.VISIBLE) {
                     restartCameraPreview()
-                } else {
-                    if (isCameraRunning) {
-                        isCameraRunning = false
-                        cameraProvider?.unbindAll()
-                        binding.fab.setImageResource(android.R.drawable.ic_media_play)
+                }
+                // 2. If camera running, capture frame, pause, and DETECT
+                else if (isCameraRunning) {
+                    isCameraRunning = false
+                    cameraProvider?.unbindAll()
 
-                        lastBitmap?.let { bmp ->
-                            binding.imagePreview.setImageBitmap(bmp)
-                            binding.imagePreview.visibility = View.VISIBLE
-                            binding.viewFinder.visibility = View.INVISIBLE
-                            binding.overlay.setImageDimensions(bmp.width, bmp.height)
+                    lastBitmap?.let { bmp ->
+                        binding.imagePreview.setImageBitmap(bmp)
+                        binding.imagePreview.visibility = View.VISIBLE
+                        binding.viewFinder.visibility = View.INVISIBLE
+
+                        binding.overlay.setImageDimensions(bmp.width, bmp.height)
+
+                        // Run detection on the frozen image
+                        cameraExecutor.execute {
+                            detector?.detect(bmp)
                         }
-                        binding.saveDialog.visibility = View.VISIBLE
-                    } else {
-                        restartCameraPreview()
                     }
+                    binding.saveDialog.visibility = View.VISIBLE
+                }
+                // 3. Fallback
+                else {
+                    restartCameraPreview()
                 }
             }
         }
+    }
+
+    private fun showPausedState() {
+        binding.imagePreview.visibility = View.VISIBLE
+        binding.viewFinder.visibility = View.INVISIBLE
+        binding.saveDialog.visibility = View.GONE
+        lastBitmap?.let {
+            binding.overlay.setImageDimensions(it.width, it.height)
+        }
+        isCameraRunning = false
     }
 
     private fun startCrop(sourceUri: Uri) {
@@ -184,7 +235,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         try {
             cameraProvider?.unbindAll()
             isCameraRunning = false
-            binding.fab.setImageResource(android.R.drawable.ic_media_play)
 
             val inputStream = requireContext().contentResolver.openInputStream(uri)
             val bitmap = BitmapFactory.decodeStream(inputStream)
@@ -207,9 +257,9 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         binding.imagePreview.visibility = View.GONE
         binding.viewFinder.visibility = View.VISIBLE
         binding.saveDialog.visibility = View.GONE
+        binding.zoomLevel.visibility = View.GONE
 
         binding.overlay.setCameraMode()
-        binding.fab.setImageResource(android.R.drawable.ic_media_pause)
         startCamera()
         isCameraRunning = true
     }
@@ -266,7 +316,10 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             val croppedBitmap = cropBitmapToView(rotatedBitmap, viewWidth, viewHeight)
 
             lastBitmap = croppedBitmap
-            detector?.detect(croppedBitmap)
+
+            if (isCameraRunning) {
+                detector?.detect(croppedBitmap)
+            }
         }
 
         cameraProvider.unbindAll()
@@ -382,7 +435,10 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                 val bottom = box.y2 * mutableBitmap.height
 
                 canvas.drawRect(left, top, right, bottom, boxPaint)
-                val text = getString(R.string.box_confidence, box.clsName, box.cnf)
+
+                // CRASH FIX: Manually format string to avoid XML resource mismatch
+                val text = "${box.clsName} ${String.format("%.2f", box.cnf)}"
+
                 val bounds = Rect()
                 textPaint.getTextBounds(text, 0, text.length, bounds)
 
@@ -412,7 +468,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
 
             Toast.makeText(context, getString(R.string.saved_at_place, placeName), Toast.LENGTH_SHORT).show()
 
-            // TRIGGER SYNC HERE
             triggerBackgroundSync()
 
         } catch (e: Exception) {
@@ -421,7 +476,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         }
     }
 
-    // Helper to trigger sync
     private fun triggerBackgroundSync() {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)

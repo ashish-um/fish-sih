@@ -8,7 +8,7 @@
 
     <color name="purple_500">#9C27B0</color>
     <!--    Box colors-->
-    <color name="primary">#FF5722</color>
+    <color name="primary">#009688</color>
     <color name="overlay_blue">#3F51B5</color>
     <color name="overlay_green">#009688</color>
     <color name="overlay_red">#E53935</color>

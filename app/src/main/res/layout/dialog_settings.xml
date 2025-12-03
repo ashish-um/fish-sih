@@ -1,69 +1,62 @@
 <?xml version="1.0" encoding="utf-8"?>
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-
     app:cardBackgroundColor="@color/white"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
-        <LinearLayout
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Reference Type"
+            android:textColor="@color/black"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="12dp"/>
+
+        <RadioGroup
+            android:id="@+id/rgReferenceType"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="16dp">
+            android:layout_marginBottom="16dp">
 
-                <com.google.android.material.checkbox.MaterialCheckBox
-                    android:id="@+id/cbSeparateOut"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/separate_out"
-                    android:textSize="12sp"/>
-
-                <com.google.android.material.checkbox.MaterialCheckBox
-                    android:id="@+id/cbMaskOut"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/mask_out"
-                    android:textSize="12sp"/>
-
-                <com.google.android.material.checkbox.MaterialCheckBox
-                    android:id="@+id/cbSmoothEdges"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/smooth_edges"
-                    android:textSize="12sp"/>
-
-            <com.google.android.material.checkbox.MaterialCheckBox
-                android:id="@+id/cbCoinReference"
+            <RadioButton
+                android:id="@+id/rbCoin"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/use_coin_reference"
-                android:textSize="12sp"      />
+                android:text="10 Rupee Coin"
+                android:textSize="16sp"
+                android:padding="8dp"/>
 
-                <LinearLayout
-                    android:id="@+id/llPatreon"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:layout_marginTop="16dp"
-                    android:padding="16dp">
+            <RadioButton
+                android:id="@+id/rbArUco"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="ArUco Marker"
+                android:textSize="16sp"
+                android:padding="8dp"/>
+        </RadioGroup>
 
-                        <ImageView
-                            android:layout_gravity="center_vertical"
-                            android:layout_width="90dp"
-                            android:adjustViewBounds="true"
-                            android:layout_height="wrap_content"
-                            android:src="@drawable/ic_patreon" />
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#E0E0E0"
+            android:layout_marginBottom="16dp"/>
 
-                        <TextView
-                            android:id="@+id/tvPatreonLink"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/patreon_message"
-                            android:textColor="@color/primary"
-                            android:textSize="12sp"
-                            android:layout_marginStart="8dp"
-                            android:textStyle="bold"/>
-                </LinearLayout>
-        </LinearLayout>
+        <com.google.android.material.checkbox.MaterialCheckBox
+            android:id="@+id/cbSmoothEdges"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/smooth_edges"
+            android:textSize="16sp"/>
+
+    </LinearLayout>
 
 </com.google.android.material.card.MaterialCardView>

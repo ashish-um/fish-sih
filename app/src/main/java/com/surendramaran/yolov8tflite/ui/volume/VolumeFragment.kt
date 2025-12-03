@@ -92,6 +92,8 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
     private var lastAnalysisResult: List<AnalysisResult>? = null
     private var currentPhotoUri: Uri? = null
 
+    private var originalBitmap: Bitmap? = null
+
     private val cropImage = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
             val resultUri = UCrop.getOutput(result.data!!)
@@ -102,7 +104,9 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
 
                 binding.instructionGifView.visibility = View.GONE
 
+                originalBitmap = bitmap
                 currentBitmap = bitmap
+
                 currentScale = 50.0f
                 isMarkerDetected = false
 
@@ -138,7 +142,6 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
         binding.viewpager.adapter = viewPagerAdapter
         binding.viewpager.addCarouselEffect()
 
-        // Arrow Logic
         binding.viewpager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
             override fun onPageSelected(position: Int) {
                 updateArrowVisibility(position, viewPagerAdapter.itemCount)
@@ -208,7 +211,6 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
         }
         binding.ivSettings.setOnClickListener { showSettingsDialog() }
 
-        // Arrow Click Listeners
         binding.btnPrev.setOnClickListener {
             val current = binding.viewpager.currentItem
             if (current > 0) binding.viewpager.currentItem = current - 1
@@ -224,9 +226,7 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
             binding.btnPrev.visibility = View.GONE
             binding.btnNext.visibility = View.GONE
         } else {
-            // Show PREV if not on first page
             binding.btnPrev.visibility = if (position > 0) View.VISIBLE else View.GONE
-            // Show NEXT if not on last page
             binding.btnNext.visibility = if (position < count - 1) View.VISIBLE else View.GONE
         }
     }
@@ -351,7 +351,6 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
                 binding.btnSave.visibility = View.GONE
                 viewPagerAdapter.updateImages(emptyList())
                 lastAnalysisResult = null
-                // Ensure arrows are hidden
                 updateArrowVisibility(0, 0)
             } else {
                 binding.tvNoFish.visibility = View.GONE
@@ -370,7 +369,6 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
                 lastAnalysisResult = analysisResults
                 viewPagerAdapter.updateImages(analysisResults)
 
-                // Update arrows immediately after data load
                 updateArrowVisibility(binding.viewpager.currentItem, analysisResults.size)
             }
         }
@@ -469,20 +467,38 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
         val dialogBinding = DialogSettingsBinding.inflate(layoutInflater)
         dialog.setContentView(dialogBinding.root)
         dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        dialogBinding.apply {
-            cbSeparateOut.isChecked = viewModel.isSeparateOutChecked
-            cbMaskOut.isChecked = viewModel.isMaskOutChecked
-            cbSmoothEdges.isChecked = viewModel.isSmoothEdges
-            cbCoinReference.isChecked = viewModel.useCoinReference
 
-            cbSeparateOut.setOnCheckedChangeListener { _, isChecked -> viewModel.isSeparateOutChecked = isChecked }
-            cbMaskOut.setOnCheckedChangeListener { _, isChecked -> viewModel.isMaskOutChecked = isChecked }
+        // Ensure dialog is wide enough
+        val width = (resources.displayMetrics.widthPixels * 0.90).toInt()
+        dialog.window?.setLayout(width, ViewGroup.LayoutParams.WRAP_CONTENT)
+
+        dialogBinding.apply {
+            cbSmoothEdges.isChecked = viewModel.isSmoothEdges
             cbSmoothEdges.setOnCheckedChangeListener { _, isChecked -> viewModel.isSmoothEdges = isChecked }
 
-            cbCoinReference.setOnCheckedChangeListener { _, isChecked ->
-                viewModel.useCoinReference = isChecked
-                if (currentBitmap != null && isChecked) {
-                    detector?.detect(currentBitmap!!)
+            if (viewModel.useCoinReference) {
+                rbCoin.isChecked = true
+            } else {
+                rbArUco.isChecked = true
+            }
+
+            rgReferenceType.setOnCheckedChangeListener { _, checkedId ->
+                val isCoin = (checkedId == R.id.rbCoin)
+                viewModel.useCoinReference = isCoin
+
+                if (originalBitmap != null) {
+                    if (!isCoin) {
+                        val (markedBitmap, scale, found) = detectArUcoMarkers(originalBitmap!!)
+                        currentBitmap = markedBitmap
+                        currentScale = scale
+                        isMarkerDetected = found
+                        detector?.detect(markedBitmap)
+                    } else {
+                        currentBitmap = originalBitmap
+                        currentScale = 50.0f
+                        isMarkerDetected = false
+                        detector?.detect(originalBitmap!!)
+                    }
                 }
             }
         }

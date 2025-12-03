@@ -11,7 +11,6 @@ import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.location.Geocoder
 import android.location.LocationManager
-import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -26,12 +25,14 @@ import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
+import androidx.viewpager2.widget.ViewPager2
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
+import com.bumptech.glide.Glide
 import com.surendramaran.yolov8tflite.R
 import com.surendramaran.yolov8tflite.data.Constants
 import com.surendramaran.yolov8tflite.data.DatabaseHelper
@@ -75,8 +76,8 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
 
     private val viewModel: SettingsViewModel by activityViewModels()
 
-    private var instanceSegmentation: InstanceSegmentation? = null // Fish Model
-    private var coinSegmentation: InstanceSegmentation? = null     // Coin Model
+    private var instanceSegmentation: InstanceSegmentation? = null
+    private var coinSegmentation: InstanceSegmentation? = null
     private var detector: Detector? = null
     private lateinit var dbHelper: DatabaseHelper
     private lateinit var drawImages: DrawImages
@@ -95,17 +96,18 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
             val resultUri = UCrop.getOutput(result.data!!)
             resultUri?.let { uri ->
-                val bitmap = Utils.getBitmapFromUri(requireContext(), uri) ?: return@let
+                var bitmap = Utils.getBitmapFromUri(requireContext(), uri) ?: return@let
 
-                // Hide instruction video immediately when we have an image
-                binding.instructionVideoView.visibility = View.GONE
+                bitmap = Utils.resizeBitmap(bitmap, 1024)
+
+                binding.instructionGifView.visibility = View.GONE
 
                 currentBitmap = bitmap
                 currentScale = 50.0f
                 isMarkerDetected = false
 
                 if (viewModel.useCoinReference) {
-                    detector?.detect(bitmap) // Starts chain
+                    detector?.detect(bitmap)
                 } else {
                     val (markedBitmap, scale, found) = detectArUcoMarkers(bitmap)
                     currentBitmap = markedBitmap
@@ -135,6 +137,14 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
         viewPagerAdapter = ViewPagerAdapter(mutableListOf())
         binding.viewpager.adapter = viewPagerAdapter
         binding.viewpager.addCarouselEffect()
+
+        // Arrow Logic
+        binding.viewpager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
+            override fun onPageSelected(position: Int) {
+                updateArrowVisibility(position, viewPagerAdapter.itemCount)
+            }
+        })
+
         return binding.root
     }
 
@@ -143,7 +153,6 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
         dbHelper = DatabaseHelper(requireContext())
         OpenCVLoader.initDebug()
 
-        // 1. Initialize Fish Seg Model (Type "Fish")
         instanceSegmentation = InstanceSegmentation(
             requireContext(),
             Constants.SEG_MODEL_PATH,
@@ -152,7 +161,6 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
             5
         ) { toast(getString(R.string.fish_error, it)) }
 
-        // 2. Initialize Coin Seg Model (Type "Coin")
         coinSegmentation = InstanceSegmentation(
             requireContext(),
             Constants.COIN_MODEL_PATH,
@@ -165,40 +173,18 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
         drawImages = DrawImages(requireContext())
 
         setupListeners()
-        setupInstructionVideo() // Initialize the video player
+        loadInstructionGif()
     }
 
-    // NEW FUNCTION: Setup video to play and loop
-    private fun setupInstructionVideo() {
-        try {
-            // Only play if we don't have an analysis yet
-            if (currentBitmap == null) {
-                val videoView = binding.instructionVideoView
-                videoView.visibility = View.VISIBLE
-
-                // Assuming the file is at app/src/main/res/raw/instruction_video.mp4
-                val videoPath = "android.resource://" + requireContext().packageName + "/" + R.raw.instruction_video
-                videoView.setVideoURI(Uri.parse(videoPath))
-
-                videoView.setOnPreparedListener { mediaPlayer ->
-                    mediaPlayer.isLooping = true
-                    mediaPlayer.setVideoScalingMode(MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT)
-                }
-
-                videoView.start()
-            } else {
-                binding.instructionVideoView.visibility = View.GONE
-            }
-        } catch (e: Exception) {
-            Log.e("VolumeFragment", getString(R.string.error_setting_up_video), e)
-        }
-    }
-
-    // NEW FUNCTION: Resume video on return if no image is selected
-    override fun onResume() {
-        super.onResume()
+    private fun loadInstructionGif() {
         if (currentBitmap == null) {
-            binding.instructionVideoView.start()
+            binding.instructionGifView.visibility = View.VISIBLE
+            Glide.with(this)
+                .asGif()
+                .load(R.drawable.instruction_video)
+                .into(binding.instructionGifView)
+        } else {
+            binding.instructionGifView.visibility = View.GONE
         }
     }
 
@@ -221,6 +207,28 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
             binding.saveDialog.visibility = View.GONE
         }
         binding.ivSettings.setOnClickListener { showSettingsDialog() }
+
+        // Arrow Click Listeners
+        binding.btnPrev.setOnClickListener {
+            val current = binding.viewpager.currentItem
+            if (current > 0) binding.viewpager.currentItem = current - 1
+        }
+        binding.btnNext.setOnClickListener {
+            val current = binding.viewpager.currentItem
+            if (current < viewPagerAdapter.itemCount - 1) binding.viewpager.currentItem = current + 1
+        }
+    }
+
+    private fun updateArrowVisibility(position: Int, count: Int) {
+        if (count <= 1) {
+            binding.btnPrev.visibility = View.GONE
+            binding.btnNext.visibility = View.GONE
+        } else {
+            // Show PREV if not on first page
+            binding.btnPrev.visibility = if (position > 0) View.VISIBLE else View.GONE
+            // Show NEXT if not on last page
+            binding.btnNext.visibility = if (position < count - 1) View.VISIBLE else View.GONE
+        }
     }
 
     private fun detectArUcoMarkers(bitmap: Bitmap): Triple<Bitmap, Float, Boolean> {
@@ -273,8 +281,11 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
         requireActivity().runOnUiThread {
             binding.pbLoading.visibility = View.VISIBLE
             binding.tvNoFish.visibility = View.GONE
-            binding.instructionVideoView.visibility = View.GONE // Ensure video is hidden
+            binding.instructionGifView.visibility = View.GONE
             binding.btnSave.visibility = View.GONE
+            binding.chipInference.visibility = View.GONE
+            binding.btnPrev.visibility = View.GONE
+            binding.btnNext.visibility = View.GONE
             viewPagerAdapter.updateImages(emptyList())
         }
 
@@ -293,11 +304,9 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
                                 coinResults = success.results
                                 if (coinResults.isNotEmpty()) {
                                     val coinBox = coinResults.first().box
-                                    // 10 Rupee Coin = 27mm = 2.7cm
                                     val widthPx = coinBox.w * bitmap.width
                                     val heightPx = coinBox.h * bitmap.height
                                     val diameterPx = max(widthPx, heightPx)
-
                                     activeScale = diameterPx / 2.7f
                                     isMarkerDetected = true
                                 }
@@ -333,19 +342,18 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
     ) {
         requireActivity().runOnUiThread {
             binding.pbLoading.visibility = View.GONE
-            binding.tvInferenceTime.text = getString(R.string.inference_time, fishSuccess.interfaceTime)
+            binding.chipInference.text = getString(R.string.inference_time_ms, fishSuccess.interfaceTime)
+            binding.chipInference.visibility = View.VISIBLE
 
             if (fishSuccess.results.isEmpty() && coinResults.isEmpty()) {
-                // Keep video hidden if we are showing "No Fish" text, or show video again?
-                // Usually better to show text "No Fish Detected" rather than reloading video.
-                binding.instructionVideoView.visibility = View.GONE
                 binding.tvNoFish.visibility = View.VISIBLE
                 binding.tvNoFish.text = getString(R.string.no_fish_or_coin_detected)
                 binding.btnSave.visibility = View.GONE
                 viewPagerAdapter.updateImages(emptyList())
                 lastAnalysisResult = null
+                // Ensure arrows are hidden
+                updateArrowVisibility(0, 0)
             } else {
-                binding.instructionVideoView.visibility = View.GONE
                 binding.tvNoFish.visibility = View.GONE
                 binding.btnSave.visibility = View.VISIBLE
 
@@ -361,6 +369,9 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
                 )
                 lastAnalysisResult = analysisResults
                 viewPagerAdapter.updateImages(analysisResults)
+
+                // Update arrows immediately after data load
+                updateArrowVisibility(binding.viewpager.currentItem, analysisResults.size)
             }
         }
     }

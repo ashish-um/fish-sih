@@ -48,16 +48,6 @@ object Utils {
         return this.map { array -> array.map { it.clone() }.toTypedArray() }
     }
 
-//    fun rotatedBitmap(bitmap: Bitmap, rotation: Int) : Bitmap {
-//        val exifOrientation = computeExifOrientation(rotation)
-//        val matrix = decodeExifOrientation(exifOrientation)
-//        return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-//    }
-//
-//    fun fileToBitmap(filePath: String): Bitmap? {
-//        return BitmapFactory.decodeFile(filePath)
-//    }
-
     fun createImageFile(context: Context): File {
         val uupDir = File(context.filesDir, "surendramaran.com")
         if (!uupDir.exists()) {
@@ -81,6 +71,31 @@ object Utils {
         }
     }
 
+    // NEW: Helper to resize bitmaps to prevent OOM
+    fun resizeBitmap(bitmap: Bitmap, maxDimension: Int): Bitmap {
+        val originalWidth = bitmap.width
+        val originalHeight = bitmap.height
+
+        // Only resize if the image is larger than the max dimension
+        if (originalWidth <= maxDimension && originalHeight <= maxDimension) {
+            return bitmap
+        }
+
+        val ratio = originalWidth.toFloat() / originalHeight.toFloat()
+        val newWidth: Int
+        val newHeight: Int
+
+        if (ratio > 1) {
+            newWidth = maxDimension
+            newHeight = (maxDimension / ratio).toInt()
+        } else {
+            newHeight = maxDimension
+            newWidth = (maxDimension * ratio).toInt()
+        }
+
+        return Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
+    }
+
     fun getCameraId(cameraManager: CameraManager): String {
         val cameraIds = cameraManager.cameraIdList
         for (id in cameraIds) {
@@ -92,30 +107,6 @@ object Utils {
         }
         return ""
     }
-
-//    private fun computeExifOrientation(rotationDegrees: Int) = when (rotationDegrees) {
-//        0 -> ExifInterface.ORIENTATION_NORMAL
-//        90 -> ExifInterface.ORIENTATION_ROTATE_90
-//        180 -> ExifInterface.ORIENTATION_ROTATE_180
-//        270 -> ExifInterface.ORIENTATION_ROTATE_270
-//        else -> ExifInterface.ORIENTATION_UNDEFINED
-//    }
-//
-//    private fun decodeExifOrientation(exifOrientation: Int): Matrix {
-//        val matrix = Matrix()
-//
-//        when (exifOrientation) {
-//            ExifInterface.ORIENTATION_NORMAL -> Unit
-//            ExifInterface.ORIENTATION_UNDEFINED -> Unit
-//            ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90F)
-//            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180F)
-//            ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270F)
-//            else -> Log.e("Camera", "Invalid orientation: $exifOrientation")
-//        }
-//
-//        return matrix
-//    }
-
 
     fun ViewPager2.addCarouselEffect() {
         clipChildren = false

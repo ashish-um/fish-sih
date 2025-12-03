@@ -5,11 +5,13 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.surendramaran.yolov8tflite.R
 
 data class DetectionItem(
     val fishName: String,
-    val count: Int
+    val count: Int,
+    val avgConfidence: Float
 )
 
 class DetectionAdapter : RecyclerView.Adapter<DetectionAdapter.DetectionViewHolder>() {
@@ -36,10 +38,16 @@ class DetectionAdapter : RecyclerView.Adapter<DetectionAdapter.DetectionViewHold
     class DetectionViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val fishName: TextView = itemView.findViewById(R.id.fishName)
         private val fishCount: TextView = itemView.findViewById(R.id.fishCount)
+        private val confidenceBar: LinearProgressIndicator = itemView.findViewById(R.id.confidenceBar)
+        private val confidenceText: TextView = itemView.findViewById(R.id.confidenceText)
 
         fun bind(item: DetectionItem) {
             fishName.text = item.fishName
             fishCount.text = item.count.toString()
+
+            val confInt = (item.avgConfidence * 100).toInt()
+            confidenceBar.progress = confInt
+            confidenceText.text = "$confInt%"
         }
     }
 }

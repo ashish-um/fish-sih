@@ -77,6 +77,9 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
     private var lastBitmap: Bitmap? = null
     private var lastResults: List<BoundingBox> = emptyList()
 
+    // Track zoom level to restore it after pausing/resuming
+    private var currentZoomRatio = 1.0f
+
     private val galleryLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let { startCrop(it) }
     }
@@ -131,22 +134,23 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
     private fun bindListeners() {
         binding.apply {
 
-            // --- ZOOM LOGIC START ---
+            // --- ZOOM LOGIC ---
             val scaleGestureDetector = ScaleGestureDetector(requireContext(), object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
                 override fun onScale(detector: ScaleGestureDetector): Boolean {
                     val zoomState = camera?.cameraInfo?.zoomState?.value ?: return false
-                    val currentZoomRatio = zoomState.zoomRatio
+                    val currentRatio = zoomState.zoomRatio
                     val delta = detector.scaleFactor
-                    val newZoomRatio = currentZoomRatio * delta
+                    val newZoomRatio = currentRatio * delta
 
                     camera?.cameraControl?.setZoomRatio(newZoomRatio)
 
-                    // Update UI
+                    // Save for restoration
+                    currentZoomRatio = newZoomRatio
+
                     val roundedZoom = String.format("%.1fx", newZoomRatio)
                     zoomLevel.text = roundedZoom
                     zoomLevel.visibility = View.VISIBLE
 
-                    // Auto-hide
                     zoomLevel.removeCallbacks { zoomLevel.visibility = View.GONE }
                     zoomLevel.postDelayed({
                         if (_binding != null) zoomLevel.visibility = View.GONE
@@ -160,7 +164,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                 scaleGestureDetector.onTouchEvent(event)
                 return@setOnTouchListener true
             }
-            // --- ZOOM LOGIC END ---
 
             btnDialogSave.setOnClickListener {
                 saveCurrentDetection()
@@ -176,14 +179,17 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             }
 
             fab.setOnClickListener {
-                // 1. If paused/reviewing, resume camera
+                // 1. If viewing a static image (Review or Paused), RESUME camera
                 if (binding.imagePreview.visibility == View.VISIBLE) {
                     restartCameraPreview()
                 }
-                // 2. If camera running, capture frame, pause, and DETECT
+                // 2. If camera is running, CAPTURE, DISPLAY & RUN MODEL
                 else if (isCameraRunning) {
                     isCameraRunning = false
                     cameraProvider?.unbindAll()
+
+                    // Change icon to Play (Resume)
+                    fab.setImageResource(android.R.drawable.ic_media_play)
 
                     lastBitmap?.let { bmp ->
                         binding.imagePreview.setImageBitmap(bmp)
@@ -192,7 +198,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
 
                         binding.overlay.setImageDimensions(bmp.width, bmp.height)
 
-                        // Run detection on the frozen image
                         cameraExecutor.execute {
                             detector?.detect(bmp)
                         }
@@ -211,6 +216,10 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         binding.imagePreview.visibility = View.VISIBLE
         binding.viewFinder.visibility = View.INVISIBLE
         binding.saveDialog.visibility = View.GONE
+
+        // Ensure icon is set to Play (Resume) since we are still paused
+        binding.fab.setImageResource(android.R.drawable.ic_media_play)
+
         lastBitmap?.let {
             binding.overlay.setImageDimensions(it.width, it.height)
         }
@@ -236,6 +245,9 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             cameraProvider?.unbindAll()
             isCameraRunning = false
 
+            // Gallery mode is a "Paused" state, so show Play icon
+            binding.fab.setImageResource(android.R.drawable.ic_media_play)
+
             val inputStream = requireContext().contentResolver.openInputStream(uri)
             val bitmap = BitmapFactory.decodeStream(inputStream)
             lastBitmap = bitmap
@@ -258,6 +270,9 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         binding.viewFinder.visibility = View.VISIBLE
         binding.saveDialog.visibility = View.GONE
         binding.zoomLevel.visibility = View.GONE
+
+        // Change icon back to Camera
+        binding.fab.setImageResource(R.drawable.ic_camera)
 
         binding.overlay.setCameraMode()
         startCamera()
@@ -328,6 +343,10 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             camera = cameraProvider.bindToLifecycle(
                 viewLifecycleOwner, cameraSelector, preview, imageAnalyzer
             )
+
+            // Restore previous zoom level
+            camera?.cameraControl?.setZoomRatio(currentZoomRatio)
+
             preview?.setSurfaceProvider(binding.viewFinder.surfaceProvider)
         } catch (exc: Exception) {
             Log.e(TAG, getString(R.string.use_case_binding_failed), exc)
@@ -435,10 +454,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                 val bottom = box.y2 * mutableBitmap.height
 
                 canvas.drawRect(left, top, right, bottom, boxPaint)
-
-                // CRASH FIX: Manually format string to avoid XML resource mismatch
                 val text = "${box.clsName} ${String.format("%.2f", box.cnf)}"
-
                 val bounds = Rect()
                 textPaint.getTextBounds(text, 0, text.length, bounds)
 
@@ -541,7 +557,10 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                     invalidate()
                 }
                 val fishCounts = boundingBoxes.groupBy { it.clsName }
-                    .map { (name, boxes) -> DetectionItem(name, boxes.size) }
+                    .map { (name, boxes) ->
+                        val avgConf = boxes.map { it.cnf }.average().toFloat()
+                        DetectionItem(name, boxes.size, avgConf)
+                    }
                     .sortedByDescending { it.count }
 
                 binding.totalCountLabel.text = getString(R.string.total_detected, boundingBoxes.size)

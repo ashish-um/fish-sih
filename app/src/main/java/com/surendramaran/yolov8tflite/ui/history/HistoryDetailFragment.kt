@@ -172,7 +172,7 @@ class HistoryDetailFragment : Fragment() {
             val desc: TextView = itemView.findViewById(R.id.tvDescription)
         }
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ImgViewHolder {
-            val view = LayoutInflater.from(parent.context).inflate(R.layout.item_image, parent, false)
+            val view = LayoutInflater.from(parent.context).inflate(R.layout.item_image_detail, parent, false)
             return ImgViewHolder(view)
         }
         override fun onBindViewHolder(holder: ImgViewHolder, position: Int) {

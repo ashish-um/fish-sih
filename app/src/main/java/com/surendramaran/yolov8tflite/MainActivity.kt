@@ -61,9 +61,14 @@ class MainActivity : AppCompatActivity() {
         binding.bottomNavigation.setupWithNavController(navController)
         binding.bottomNavigation.setOnItemSelectedListener { item ->
             if (item.itemId != navController.currentDestination?.id) {
+
+                // CHANGE: Do NOT restore state for MoreFragment to force a reset to the main More screen.
+                // For all other tabs, keep standard behavior (restore state).
+                val shouldRestore = item.itemId != R.id.moreFragment
+
                 val builder = NavOptions.Builder()
                     .setLaunchSingleTop(true)
-                    .setRestoreState(true) // ENABLE STATE RESTORATION
+                    .setRestoreState(shouldRestore) // Modified here
                     .setEnterAnim(R.anim.fade_in)
                     .setExitAnim(R.anim.fade_out)
                     .setPopEnterAnim(R.anim.fade_in)

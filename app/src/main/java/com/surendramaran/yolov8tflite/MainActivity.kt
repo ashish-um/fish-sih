@@ -42,8 +42,6 @@ class MainActivity : AppCompatActivity() {
         val navGraph = navController.navInflater.inflate(R.navigation.nav_graph)
 
         // 1. CONDITIONAL START DESTINATION
-        // If profile is NOT set (First Time) -> Go to Language
-        // If profile IS set -> Go to Camera
         if (!UserUtils.isProfileSet(this)) {
             navGraph.setStartDestination(R.id.languageFragment)
         } else {
@@ -65,12 +63,19 @@ class MainActivity : AppCompatActivity() {
             if (item.itemId != navController.currentDestination?.id) {
                 val builder = NavOptions.Builder()
                     .setLaunchSingleTop(true)
-                    .setRestoreState(false)
+                    .setRestoreState(true) // ENABLE STATE RESTORATION
                     .setEnterAnim(R.anim.fade_in)
                     .setExitAnim(R.anim.fade_out)
                     .setPopEnterAnim(R.anim.fade_in)
                     .setPopExitAnim(R.anim.fade_out)
-                builder.setPopUpTo(navController.graph.startDestinationId, false, false)
+
+                // Save state of the start destination when switching away
+                builder.setPopUpTo(
+                    navController.graph.startDestinationId,
+                    false,
+                    true // SAVE STATE
+                )
+
                 navController.navigate(item.itemId, null, builder.build())
             }
             true

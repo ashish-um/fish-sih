@@ -12,7 +12,6 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.location.Geocoder
 import android.location.LocationManager
-import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -31,6 +30,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
+import com.bumptech.glide.Glide
 import com.surendramaran.yolov8tflite.R
 import com.surendramaran.yolov8tflite.data.DatabaseHelper
 import com.surendramaran.yolov8tflite.data.SyncWorker
@@ -102,7 +102,7 @@ class FreshnessFragment : Fragment() {
 
         initDetectors()
         setupButtons()
-        setupInstructionVideos()
+        loadGifs()
     }
 
     private fun initDetectors() {
@@ -137,31 +137,22 @@ class FreshnessFragment : Fragment() {
         }
     }
 
-    private fun setupInstructionVideos() {
-        try {
-            val eyesUri = Uri.parse("android.resource://" + requireContext().packageName + "/" + R.raw.eyes_instruction)
-            binding.videoInstructionsEyes.setVideoURI(eyesUri)
-            binding.videoInstructionsEyes.setOnPreparedListener { mp ->
-                mp.isLooping = true
-                mp.setVideoScalingMode(MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT)
-                if (lastBitmapEyes == null) binding.videoInstructionsEyes.start()
-            }
+    private fun loadGifs() {
+        // Load Eye Inspection GIF
+        if (lastBitmapEyes == null) {
+            Glide.with(this)
+                .asGif()
+                .load(R.drawable.eyes_instruction) // Ensure this file exists in res/drawable
+                .into(binding.gifInstructionsEyes)
+        }
 
-            val gillsUri = Uri.parse("android.resource://" + requireContext().packageName + "/" + R.raw.gills_instruction)
-            binding.videoInstructionsGills.setVideoURI(gillsUri)
-            binding.videoInstructionsGills.setOnPreparedListener { mp ->
-                mp.isLooping = true
-                mp.setVideoScalingMode(MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT)
-                if (lastBitmapGills == null) binding.videoInstructionsGills.start()
-            }
-
-        } catch (e: Exception) { e.printStackTrace() }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        if (lastBitmapEyes == null) binding.videoInstructionsEyes.start()
-        if (lastBitmapGills == null) binding.videoInstructionsGills.start()
+        // Load Gill Inspection GIF
+        if (lastBitmapGills == null) {
+            Glide.with(this)
+                .asGif()
+                .load(R.drawable.gills_instruction) // Ensure this file exists in res/drawable
+                .into(binding.gifInstructionsGills)
+        }
     }
 
     private fun setupButtons() {
@@ -231,7 +222,7 @@ class FreshnessFragment : Fragment() {
                 lastBitmapEyes = bitmap
                 binding.imgEyes.setImageBitmap(bitmap)
                 binding.imgEyes.visibility = View.VISIBLE
-                binding.videoInstructionsEyes.visibility = View.GONE
+                binding.gifInstructionsEyes.visibility = View.GONE // Hide GIF
                 binding.overlayEyes.setImageDimensions(bitmap.width, bitmap.height)
                 binding.pbEyesLoading.visibility = View.VISIBLE
                 cameraExecutor.execute { detectorEyes?.detect(bitmap) }
@@ -240,7 +231,7 @@ class FreshnessFragment : Fragment() {
                 lastBitmapGills = bitmap
                 binding.imgGills.setImageBitmap(bitmap)
                 binding.imgGills.visibility = View.VISIBLE
-                binding.videoInstructionsGills.visibility = View.GONE
+                binding.gifInstructionsGills.visibility = View.GONE // Hide GIF
                 binding.overlayGills.setImageDimensions(bitmap.width, bitmap.height)
                 binding.pbGillsLoading.visibility = View.VISIBLE
                 cameraExecutor.execute { detectorGills?.detect(bitmap) }
@@ -270,16 +261,15 @@ class FreshnessFragment : Fragment() {
                 val conf = (bestBox.cnf * 100).toInt()
                 txtResult.text = getString(R.string.detected_label, label, conf)
 
-                // Color Logic
                 val isNonFresh = label.lowercase().contains("non") || label.lowercase().contains("spoil")
                 val score = if (isNonFresh) 0.5f - (bestBox.cnf / 2.0f) else 0.5f + (bestBox.cnf / 2.0f)
 
                 if (score > 0.5f) {
-                    txtResult.setTextColor(Color.parseColor("#1B5E20")) // Dark Green
-                    txtResult.background.setTint(Color.parseColor("#E8F5E9")) // Light Green
+                    txtResult.setTextColor(Color.parseColor("#1B5E20"))
+                    txtResult.background.setTint(Color.parseColor("#E8F5E9"))
                 } else {
-                    txtResult.setTextColor(Color.parseColor("#B71C1C")) // Dark Red
-                    txtResult.background.setTint(Color.parseColor("#FFEBEE")) // Light Red
+                    txtResult.setTextColor(Color.parseColor("#B71C1C"))
+                    txtResult.background.setTint(Color.parseColor("#FFEBEE"))
                 }
 
                 if (isEyes) eyesScore = score else gillsScore = score
@@ -296,7 +286,6 @@ class FreshnessFragment : Fragment() {
         val eScore = eyesScore
         val gScore = gillsScore
 
-        // Show result only if BOTH parts are scanned
         if (eScore != null && gScore != null) {
             binding.cardFinalVerdict.visibility = View.VISIBLE
 

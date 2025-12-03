@@ -82,7 +82,7 @@
                     <androidx.cardview.widget.CardView
                         android:layout_width="match_parent"
                         android:layout_height="300dp"
-                        app:cardBackgroundColor="#F0F0F0"
+                        app:cardBackgroundColor="@color/white"
                         app:cardCornerRadius="12dp"
                         app:cardElevation="0dp">
 
@@ -90,15 +90,12 @@
                             android:layout_width="match_parent"
                             android:layout_height="match_parent">
 
-                            <VideoView
-                                android:id="@+id/videoInstructionsEyes"
+                            <ImageView
+                                android:id="@+id/gifInstructionsEyes"
                                 android:layout_width="match_parent"
                                 android:layout_height="match_parent"
-                                android:layout_gravity="center"
-                                app:layout_constraintBottom_toBottomOf="parent"
-                                app:layout_constraintEnd_toEndOf="parent"
-                                app:layout_constraintStart_toStartOf="parent"
-                                app:layout_constraintTop_toTopOf="parent" />
+                                android:scaleType="fitCenter"
+                                tools:src="@tools:sample/avatars" />
 
                             <ImageView
                                 android:id="@+id/imgEyes"
@@ -230,7 +227,7 @@
                     <androidx.cardview.widget.CardView
                         android:layout_width="match_parent"
                         android:layout_height="300dp"
-                        app:cardBackgroundColor="#F0F0F0"
+                        app:cardBackgroundColor="@color/white"
                         app:cardCornerRadius="12dp"
                         app:cardElevation="0dp">
 
@@ -238,15 +235,12 @@
                             android:layout_width="match_parent"
                             android:layout_height="match_parent">
 
-                            <VideoView
-                                android:id="@+id/videoInstructionsGills"
+                            <ImageView
+                                android:id="@+id/gifInstructionsGills"
                                 android:layout_width="match_parent"
                                 android:layout_height="match_parent"
-                                android:layout_gravity="center"
-                                app:layout_constraintBottom_toBottomOf="parent"
-                                app:layout_constraintEnd_toEndOf="parent"
-                                app:layout_constraintStart_toStartOf="parent"
-                                app:layout_constraintTop_toTopOf="parent" />
+                                android:scaleType="fitCenter"
+                                tools:src="@tools:sample/avatars" />
 
                             <ImageView
                                 android:id="@+id/imgGills"
@@ -366,9 +360,9 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
                         android:text="@string/scan_both_parts"
-                        android:textColor="@color/black"
                         android:textSize="28sp"
-                        android:textStyle="bold" />
+                        android:textStyle="bold"
+                        android:textColor="@color/black"/>
 
                     <Button
                         android:id="@+id/btnSaveResult"
@@ -378,7 +372,7 @@
                         android:backgroundTint="@color/primary"
                         android:text="@string/save_record"
                         android:textColor="@color/white"
-                        app:cornerRadius="30dp" />
+                        app:cornerRadius="30dp"/>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

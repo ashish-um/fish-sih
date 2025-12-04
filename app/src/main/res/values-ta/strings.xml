@@ -200,4 +200,37 @@
     <string name="profile_error_starting_camera">கேமராவைத் தொடங்குவதில் பிழை: %1$s</string>
     <string name="profile_edit_photo_title">புகைப்படத்தைத் திருத்தவும்</string>
     <string name="profile_failed_to_save_image">படத்தைச் சேமிக்க முடியவில்லை</string>
+
+
+    <!-- Analytics & Dashboard -->
+    <string name="analytics">பகுப்பாய்வு (Analytics)</string>
+    <string name="total_catch">மொத்த பிடிப்பு</string>
+    <string name="freshness_rate">புத்துணர்ச்சி விகிதம்</string>
+    <string name="top_species">முக்கிய இனங்கள்</string>
+    <string name="catch_trend">பிடிப்பு போக்கு (கடைசி 7 நாட்கள்)</string>
+    <string name="species_breakdown">இனங்களின் விவரம்</string>
+    <string name="fresh_vs_spoil">புதியது vs கெட்டுப்போனது</string>
+    <string name="no_data_analytics">பகுப்பாய்விற்கு போதுமான தரவு இன்னும் இல்லை.</string>
+    <string name="catch_count">%1$d</string>
+    <string name="percent_value">%1$d%%</string>
+    <string name="analytics_period">கடைசி 30 நாட்கள்</string>
+    <string name="dashboard">டாஷ்போர்டு</string>
+    <string name="total_biomass">மதிப்பிடப்பட்ட பயோமாஸ்</string>
+    <string name="weekly_activity">வாராந்திர செயல்பாடு</string>
+    <string name="weight_value">%1$.1f kg</string>
+    <string name="freshness_index">புத்துணர்ச்சி குறியீடு</string>
+    <string name="no_activity_data">கடந்த 7 நாட்களில் எந்த நடவடிக்கையும் இல்லை</string>
+
+    <string name="upload_status">பதிவேற்ற நிலை</string>
+    <string name="synced">ஒத்திசைக்கப்பட்டது</string>
+    <string name="pending">நிலுவையில் உள்ளது</string>
+    <string name="size_distribution">அளவு விநியோகம்</string>
+    <string name="size_small">சிறியது (&lt;0.5kg)</string>
+    <string name="size_medium">நடுத்தரம் (0.5kg-2kg)</string>
+    <string name="size_large">பெரியது (&gt;2kg)</string>
+    <string name="hourly_activity">மணிநேர செயல்பாடு (24H)</string>
+
+    <string name="eyes_count_label">கண்கள்: %1$d</string>
+    <string name="eyes_count_default">கண்கள்: 0</string>
+    <string name="total_eyes_format">(கண்கள்: %1$d)</string>
 </resources>

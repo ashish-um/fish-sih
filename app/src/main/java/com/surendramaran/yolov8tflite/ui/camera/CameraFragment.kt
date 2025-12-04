@@ -101,7 +101,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             lastEyeResults = emptyList()
             activity?.runOnUiThread {
                 if (_binding != null) {
-                    binding.eyesCountLabel.text = "Eyes: 0"
+                    binding.eyesCountLabel.text = getString(R.string.eyes_count_default)
                     binding.eyesCountLabel.visibility = View.VISIBLE
                     // Clear only eye boxes
                     binding.overlay.setEyeResults(emptyList())
@@ -115,7 +115,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             lastEyeResults = boundingBoxes
             activity?.runOnUiThread {
                 if (_binding != null) {
-                    binding.eyesCountLabel.text = "Eyes: ${boundingBoxes.size}"
+                    binding.eyesCountLabel.text = getString(R.string.eyes_count_label, boundingBoxes.size)
                     binding.eyesCountLabel.visibility = View.VISIBLE
                     // Draw eye boxes
                     binding.overlay.setEyeResults(boundingBoxes)

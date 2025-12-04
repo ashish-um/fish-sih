@@ -200,4 +200,36 @@
     <string name="profile_error_starting_camera">ക്യാമറ ആരംഭിക്കുന്നതിൽ പിശക്: %1$s</string>
     <string name="profile_edit_photo_title">ഫോട്ടോ എഡിറ്റ് ചെയ്യുക</string>
     <string name="profile_failed_to_save_image">ചിത്രം സേവ് ചെയ്യുന്നതിൽ പരാജയപ്പെട്ടു</string>
+
+    <!-- Analytics & Dashboard -->
+    <string name="analytics">അനലിറ്റിക്സ്</string>
+    <string name="total_catch">ആകെ പിടിച്ചത്</string>
+    <string name="freshness_rate">ഫ്രഷ്നസ് നിരക്ക്</string>
+    <string name="top_species">പ്രധാന ഇനങ്ങൾ</string>
+    <string name="catch_trend">ക്യാച്ച് ട്രെൻഡ് (കഴിഞ്ഞ 7 ദിവസങ്ങൾ)</string>
+    <string name="species_breakdown">ഇനങ്ങളുടെ തരംതിരിക്കൽ</string>
+    <string name="fresh_vs_spoil">പുതിയത് vs കേടായവ</string>
+    <string name="no_data_analytics">അനലിറ്റിക്സിനായി മതിയായ ഡാറ്റയില്ല.</string>
+    <string name="catch_count">%1$d</string>
+    <string name="percent_value">%1$d%%</string>
+    <string name="analytics_period">കഴിഞ്ഞ 30 ദിവസങ്ങൾ</string>
+    <string name="dashboard">ഡാഷ്‌ബോർഡ്</string>
+    <string name="total_biomass">ഏകദേശ ബയോമാസ്</string>
+    <string name="weekly_activity">പ്രതിവാര പ്രവർത്തനം</string>
+    <string name="weight_value">%1$.1f kg</string>
+    <string name="freshness_index">ഫ്രഷ്നസ് സൂചിക</string>
+    <string name="no_activity_data">കഴിഞ്ഞ 7 ദിവസങ്ങളിൽ പ്രവർത്തനങ്ങളൊന്നുമില്ല</string>
+
+    <string name="upload_status">അപ്‌ലോഡ് നില</string>
+    <string name="synced">സമന്വയിപ്പിച്ചു</string>
+    <string name="pending">ബാക്കിയുള്ളവ</string>
+    <string name="size_distribution">വലിപ്പ വിതരണം</string>
+    <string name="size_small">ചെറുത് (&lt;0.5kg)</string>
+    <string name="size_medium">ഇടത്തരം (0.5kg-2kg)</string>
+    <string name="size_large">വലുത് (&gt;2kg)</string>
+    <string name="hourly_activity">മണിക്കൂർ അടിസ്ഥാനത്തിലുള്ള പ്രവർത്തനം (24H)</string>
+
+    <string name="eyes_count_label">കണ്ണുകൾ: %1$d</string>
+    <string name="eyes_count_default">കണ്ണുകൾ: 0</string>
+    <string name="total_eyes_format">(കണ്ണുകൾ: %1$d)</string>
 </resources>

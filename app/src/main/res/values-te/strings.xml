@@ -200,4 +200,36 @@
     <string name="profile_error_starting_camera">కెమెరా ప్రారంభించడంలో లోపం: %1$s</string>
     <string name="profile_edit_photo_title">ఫోటోను సవరించండి</string>
     <string name="profile_failed_to_save_image">చిత్రం సేవ్ చేయడంలో విఫలమైంది</string>
+
+    <!-- Analytics & Dashboard -->
+    <string name="analytics">అనలిటిక్స్</string>
+    <string name="total_catch">మొత్తం క్యాచ్</string>
+    <string name="freshness_rate">తాజాదనం రేటు</string>
+    <string name="top_species">అగ్ర జాతులు</string>
+    <string name="catch_trend">క్యాచ్ సరళి (గత 7 రోజులు)</string>
+    <string name="species_breakdown">జాతుల విభజన</string>
+    <string name="fresh_vs_spoil">తాజా vs పాడైపోయినవి</string>
+    <string name="no_data_analytics">అనలిటిక్స్ కోసం ఇంకా తగినంత డేటా లేదు.</string>
+    <string name="catch_count">%1$d</string>
+    <string name="percent_value">%1$d%%</string>
+    <string name="analytics_period">గత 30 రోజులు</string>
+    <string name="dashboard">డ్యాష్‌బోర్డ్</string>
+    <string name="total_biomass">అంచనా వేసిన బయోమాస్</string>
+    <string name="weekly_activity">వారపు కార్యకలాపాలు</string>
+    <string name="weight_value">%1$.1f kg</string>
+    <string name="freshness_index">తాజాదనం సూచిక</string>
+    <string name="no_activity_data">గత 7 రోజుల్లో ఎటువంటి కార్యకలాపాలు లేవు</string>
+
+    <string name="upload_status">అప్‌లోడ్ స్థితి</string>
+    <string name="synced">సింక్ చేయబడింది</string>
+    <string name="pending">పెండింగ్‌లో ఉంది</string>
+    <string name="size_distribution">పరిమాణం పంపిణీ</string>
+    <string name="size_small">చిన్నది (&lt;0.5kg)</string>
+    <string name="size_medium">మధ్యస్థం (0.5kg-2kg)</string>
+    <string name="size_large">పెద్దది (&gt;2kg)</string>
+    <string name="hourly_activity">గంటల వారీగా కార్యాచరణ (24H)</string>
+
+    <string name="eyes_count_label">కళ్ళు: %1$d</string>
+    <string name="eyes_count_default">కళ్ళు: 0</string>
+    <string name="total_eyes_format">(కళ్ళు: %1$d)</string>
 </resources>

@@ -144,7 +144,7 @@
             android:textColor="#2E7D32"
             android:textSize="14sp"
             android:textStyle="bold"
-            android:text="Eyes: 0"
+            android:text="@string/eyes_count_default"
             android:visibility="gone"
             app:layout_constraintStart_toEndOf="@+id/totalCountLabel"
             app:layout_constraintTop_toBottomOf="@+id/detectionTitle"

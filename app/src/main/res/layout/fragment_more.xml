@@ -16,7 +16,6 @@
         android:clipChildren="false"
         android:clipToPadding="false">
 
-        <!-- Screen Title -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -26,7 +25,6 @@
             android:textColor="@color/black"
             android:textSize="32sp" />
 
-        <!-- Hero Card: Profile -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/btn_profile"
             android:layout_width="match_parent"
@@ -82,7 +80,6 @@
             </androidx.constraintlayout.widget.ConstraintLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Section Header -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -94,7 +91,6 @@
             android:letterSpacing="0.1"
             android:textAllCaps="true"/>
 
-        <!-- Utilities Grid -->
         <GridLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -103,7 +99,6 @@
             android:alignmentMode="alignBounds"
             android:columnOrderPreserved="false">
 
-            <!-- History Card -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/btn_history"
                 android:layout_width="0dp"
@@ -148,7 +143,6 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Map Card -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/btn_map"
                 android:layout_width="0dp"
@@ -193,7 +187,6 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Chat Card -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/btn_chat"
                 android:layout_width="0dp"
@@ -237,7 +230,6 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Language Card -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/btn_language"
                 android:layout_width="0dp"
@@ -282,14 +274,13 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Analytics Card -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/btn_analytics"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_columnWeight="1"
+                android:layout_columnSpan="2"
                 android:layout_gravity="fill"
-                android:layout_marginEnd="8dp"
                 android:layout_marginTop="16dp"
                 android:layout_marginBottom="16dp"
                 android:clickable="true"

@@ -200,4 +200,36 @@
     <string name="profile_error_starting_camera">कैमरा शुरू करने में त्रुटि: %1$s</string>
     <string name="profile_edit_photo_title">फ़ोटो संपादित करें</string>
     <string name="profile_failed_to_save_image">छवि सहेजने में विफल</string>
+
+    <!-- Analytics & Dashboard -->
+    <string name="analytics">एनालिटिक्स (Analytics)</string>
+    <string name="total_catch">कुल पकड़ (Total Catch)</string>
+    <string name="freshness_rate">ताजगी दर</string>
+    <string name="top_species">शीर्ष प्रजातियाँ</string>
+    <string name="catch_trend">कैच ट्रेंड (पिछले 7 दिन)</string>
+    <string name="species_breakdown">प्रजातियों का विवरण</string>
+    <string name="fresh_vs_spoil">ताज़ा बनाम खराब</string>
+    <string name="no_data_analytics">एनालिटिक्स के लिए अभी पर्याप्त डेटा नहीं है।</string>
+    <string name="catch_count">%1$d</string>
+    <string name="percent_value">%1$d%%</string>
+    <string name="analytics_period">पिछले 30 दिन</string>
+    <string name="dashboard">डैशबोर्ड</string>
+    <string name="total_biomass">अनुमानित बायोमास</string>
+    <string name="weekly_activity">साप्ताहिक गतिविधि</string>
+    <string name="weight_value">%1$.1f kg</string>
+    <string name="freshness_index">ताजगी सूचकांक</string>
+    <string name="no_activity_data">पिछले 7 दिनों में कोई गतिविधि नहीं</string>
+
+    <string name="upload_status">अपलोड स्थिति</string>
+    <string name="synced">सिंक हो गया</string>
+    <string name="pending">लंबित (Pending)</string>
+    <string name="size_distribution">आकार वितरण</string>
+    <string name="size_small">छोटा (&lt;0.5kg)</string>
+    <string name="size_medium">मध्यम (0.5kg-2kg)</string>
+    <string name="size_large">बड़ा (&gt;2kg)</string>
+    <string name="hourly_activity">प्रति घंटा गतिविधि (24H)</string>
+
+    <string name="eyes_count_label">आँखें: %1$d</string>
+    <string name="eyes_count_default">आँखें: 0</string>
+    <string name="total_eyes_format">(आँखें: %1$d)</string>
 </resources>

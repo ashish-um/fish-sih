@@ -201,7 +201,6 @@
     <string name="profile_edit_photo_title">Edit Photo</string>
     <string name="profile_failed_to_save_image">Failed to save image</string>
 
-    <!-- Analytics Strings -->
     <string name="analytics">Analytics</string>
     <string name="total_catch">Total Catch</string>
     <string name="freshness_rate">Freshness Rate</string>
@@ -220,7 +219,6 @@
     <string name="freshness_index">Freshness Index</string>
     <string name="no_activity_data">No activity in last 7 days</string>
 
-    <!-- New Data Strings -->
     <string name="upload_status">Upload Status</string>
     <string name="synced">Synced</string>
     <string name="pending">Pending</string>
@@ -229,4 +227,8 @@
     <string name="size_medium">Medium (0.5kg-2kg)</string>
     <string name="size_large">Large (&gt;2kg)</string>
     <string name="hourly_activity">Hourly Activity (24H)</string>
+
+    <string name="eyes_count_label">Eyes: %1$d</string>
+    <string name="eyes_count_default">Eyes: 0</string>
+    <string name="total_eyes_format">(Eyes: %1$d)</string>
 </resources>

@@ -15,7 +15,6 @@
         android:paddingBottom="100dp"
         android:clipToPadding="false">
 
-        <!-- Title & Refresh -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -44,7 +43,6 @@
                 android:contentDescription="Refresh"/>
         </LinearLayout>
 
-        <!-- Time Filter -->
         <HorizontalScrollView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -90,7 +88,6 @@
             android:orientation="vertical"
             android:paddingHorizontal="24dp">
 
-            <!-- 1. Upload Status (Simplified) -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -116,11 +113,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"/>
-                <!-- Content added programmatically -->
-
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- 2. Key Metrics Grid -->
             <GridLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -130,7 +124,6 @@
                 android:columnOrderPreserved="false"
                 android:layout_marginBottom="16dp">
 
-                <!-- Total Catch -->
                 <com.google.android.material.card.MaterialCardView
                     android:id="@+id/cardTotalCatch"
                     android:layout_width="0dp"
@@ -179,10 +172,19 @@
                             android:text="@string/total_catch"
                             android:textSize="14sp"
                             android:textColor="#757575"/>
+
+                        <TextView
+                            android:id="@+id/tvTotalEyes"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            tools:text="(Eyes: 284)"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:textColor="#2E7D32"/>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <!-- Biomass -->
                 <com.google.android.material.card.MaterialCardView
                     android:id="@+id/cardBiomass"
                     android:layout_width="0dp"
@@ -231,7 +233,6 @@
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <!-- Freshness Index -->
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -290,7 +291,6 @@
                 </com.google.android.material.card.MaterialCardView>
             </GridLayout>
 
-            <!-- 3. Size Distribution -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -319,7 +319,6 @@
 
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- 4. Hourly Activity (Heatmap) -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -362,7 +361,6 @@
                             android:textStyle="bold"/>
                     </LinearLayout>
 
-                    <!-- Custom Heatmap Container -->
                     <LinearLayout
                         android:id="@+id/hourlyChartContainer"
                         android:layout_width="match_parent"
@@ -372,7 +370,6 @@
                         android:baselineAligned="false">
                     </LinearLayout>
 
-                    <!-- Hour Labels -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -388,7 +385,6 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- 5. Weekly Activity -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -414,7 +410,6 @@
                         android:textColor="@color/black"
                         android:layout_marginBottom="24dp"/>
 
-                    <!-- Custom Bar Chart Container -->
                     <LinearLayout
                         android:id="@+id/chartContainer"
                         android:layout_width="match_parent"
@@ -424,7 +419,6 @@
                         android:baselineAligned="false">
                     </LinearLayout>
 
-                    <!-- X-Axis Labels -->
                     <LinearLayout
                         android:id="@+id/chartLabels"
                         android:layout_width="match_parent"
@@ -438,7 +432,6 @@
 
         </LinearLayout>
 
-        <!-- Recent Activity Header -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -466,7 +459,6 @@
                 android:focusable="true"/>
         </LinearLayout>
 
-        <!-- Horizontal Recent List -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rvRecentActivity"
             android:layout_width="match_parent"
@@ -482,7 +474,6 @@
             android:orientation="vertical"
             android:paddingHorizontal="24dp">
 
-            <!-- Top Locations -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -511,7 +502,6 @@
 
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Species Breakdown -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"

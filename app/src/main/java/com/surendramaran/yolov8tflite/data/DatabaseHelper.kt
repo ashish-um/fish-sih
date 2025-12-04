@@ -206,22 +206,40 @@ class DatabaseHelper(private val context: Context) : SQLiteOpenHelper(context, D
         val db = this.readableDatabase
 
         var totalCatch = 0
+        var totalEyes = 0
         val speciesMap = mutableMapOf<String, Int>()
 
-        val speciesCursor = db.rawQuery("SELECT $COLUMN_TITLE FROM $TABLE_NAME WHERE $COLUMN_TYPE = $TYPE_DETECTION AND $COLUMN_TIMESTAMP >= $startTime", null)
+        // Updated query to fetch DETAILS as well
+        val speciesCursor = db.rawQuery("SELECT $COLUMN_TITLE, $COLUMN_DETAILS FROM $TABLE_NAME WHERE $COLUMN_TYPE = $TYPE_DETECTION AND $COLUMN_TIMESTAMP >= $startTime", null)
+
+        // Regex for parsing eye count from details (e.g. "Eyes: 5")
+        val eyesPattern = Pattern.compile("Eyes: (\\d+)")
+
         if (speciesCursor.moveToFirst()) {
             do {
+                // 1. Parse Fish Count from Title
                 val title = speciesCursor.getString(0)
                 val parts = title.split(",")
                 for (part in parts) {
                     val entry = part.split(":")
                     if (entry.size == 2) {
                         val name = entry[0].trim()
-                        val count = entry[1].trim().toIntOrNull() ?: 0
-                        speciesMap[name] = speciesMap.getOrDefault(name, 0) + count
-                        totalCatch += count
+                        // Ignore "Eyes" if somehow present in title (unlikely based on current logic, but safe)
+                        if (!name.equals("Eyes", ignoreCase = true)) {
+                            val count = entry[1].trim().toIntOrNull() ?: 0
+                            speciesMap[name] = speciesMap.getOrDefault(name, 0) + count
+                            totalCatch += count
+                        }
                     }
                 }
+
+                // 2. Parse Eye Count from Details
+                val details = speciesCursor.getString(1) ?: ""
+                val matcher = eyesPattern.matcher(details)
+                if (matcher.find()) {
+                    totalEyes += matcher.group(1)?.toIntOrNull() ?: 0
+                }
+
             } while (speciesCursor.moveToNext())
         }
         speciesCursor.close()
@@ -241,7 +259,7 @@ class DatabaseHelper(private val context: Context) : SQLiteOpenHelper(context, D
         }
         freshCursor.close()
 
-        return AnalyticsStats(totalCatch, speciesMap, freshCount, spoiledCount)
+        return AnalyticsStats(totalCatch, speciesMap, freshCount, spoiledCount, totalEyes)
     }
 
     fun getRecentLogs(limit: Int): List<HistoryItem> {
@@ -274,7 +292,8 @@ class DatabaseHelper(private val context: Context) : SQLiteOpenHelper(context, D
         val totalCatch: Int,
         val speciesBreakdown: Map<String, Int>,
         val freshCount: Int,
-        val spoiledCount: Int
+        val spoiledCount: Int,
+        val totalEyes: Int = 0 // Added field
     )
 
     fun getHistoryByType(type: Int): List<HistoryItem> {

@@ -90,6 +90,14 @@ class AnalyticsFragment : Fragment() {
         val biomassKg = dbHelper.getTotalBiomass(currentStartTime)
         binding.tvBiomass.text = getString(R.string.weight_value, biomassKg)
 
+        // NEW: Show Total Eyes
+        if (stats.totalEyes > 0) {
+            binding.tvTotalEyes.text = "(Eyes: ${stats.totalEyes})"
+            binding.tvTotalEyes.visibility = View.VISIBLE
+        } else {
+            binding.tvTotalEyes.visibility = View.GONE
+        }
+
         // Freshness Index
         val totalFreshnessChecks = stats.freshCount + stats.spoiledCount
         if (totalFreshnessChecks > 0) {

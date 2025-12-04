@@ -9,7 +9,6 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.Rect
 import android.location.Geocoder
 import android.location.LocationManager
 import android.net.Uri
@@ -17,14 +16,12 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
-import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
@@ -36,7 +33,6 @@ import com.surendramaran.yolov8tflite.data.DatabaseHelper
 import com.surendramaran.yolov8tflite.data.SyncWorker
 import com.surendramaran.yolov8tflite.ml.BoundingBox
 import com.surendramaran.yolov8tflite.ml.Detector
-import com.surendramaran.yolov8tflite.ui.customview.OverlayView
 import com.surendramaran.yolov8tflite.databinding.FragmentFreshnessBinding
 import com.yalantis.ucrop.UCrop
 import java.io.File
@@ -138,7 +134,6 @@ class FreshnessFragment : Fragment() {
     }
 
     private fun loadGifs() {
-        // Load Eye Inspection GIF
         if (lastBitmapEyes == null) {
             Glide.with(this)
                 .asGif()
@@ -146,7 +141,6 @@ class FreshnessFragment : Fragment() {
                 .into(binding.gifInstructionsEyes)
         }
 
-        // Load Gill Inspection GIF
         if (lastBitmapGills == null) {
             Glide.with(this)
                 .asGif()
@@ -217,6 +211,11 @@ class FreshnessFragment : Fragment() {
             var bitmap = BitmapFactory.decodeStream(inputStream)
             bitmap = Utils.rotateImageIfRequired(requireContext(), bitmap, uri)
 
+            // --- DECREASE RESOLUTION HERE ---
+            // Resize to max 640px dimension to optimize for model inference
+            bitmap = Utils.resizeBitmap(bitmap, 640)
+            // --------------------------------
+
             if (isTargetingEyes) {
                 if (detectorEyes == null) return
                 lastBitmapEyes = bitmap
@@ -224,10 +223,7 @@ class FreshnessFragment : Fragment() {
                 binding.imgEyes.visibility = View.VISIBLE
                 binding.gifInstructionsEyes.visibility = View.GONE
 
-                // --- FIX: Clear previous overlay results immediately ---
                 binding.overlayEyes.clear()
-                // -----------------------------------------------------
-
                 binding.overlayEyes.setImageDimensions(bitmap.width, bitmap.height)
                 binding.pbEyesLoading.visibility = View.VISIBLE
                 cameraExecutor.execute { detectorEyes?.detect(bitmap) }
@@ -238,10 +234,7 @@ class FreshnessFragment : Fragment() {
                 binding.imgGills.visibility = View.VISIBLE
                 binding.gifInstructionsGills.visibility = View.GONE
 
-                // --- FIX: Clear previous overlay results immediately ---
                 binding.overlayGills.clear()
-                // -----------------------------------------------------
-
                 binding.overlayGills.setImageDimensions(bitmap.width, bitmap.height)
                 binding.pbGillsLoading.visibility = View.VISIBLE
                 cameraExecutor.execute { detectorGills?.detect(bitmap) }
@@ -263,7 +256,14 @@ class FreshnessFragment : Fragment() {
             val bestBox = boxes.maxByOrNull { it.cnf }
             val singleBoxList = if (bestBox != null) listOf(bestBox) else emptyList()
 
-            overlay.setResults(singleBoxList)
+            // Pass eye results specifically if needed, or generic results
+            if (isEyes) {
+                overlay.setEyeResults(singleBoxList)
+            } else {
+                // For gills we use the generic/fish box style or add a gill method if distinct style needed
+                // Reusing standard results method for gills or eyes (as per previous patterns)
+                overlay.setResults(singleBoxList)
+            }
             overlay.invalidate()
 
             if (bestBox != null) {

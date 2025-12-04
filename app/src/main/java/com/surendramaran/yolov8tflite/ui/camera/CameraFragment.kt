@@ -77,6 +77,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
     private lateinit var dbHelper: DatabaseHelper
     private var lastBitmap: Bitmap? = null
     private var lastResults: List<BoundingBox> = emptyList()
+    private var lastEyeResults: List<BoundingBox> = emptyList() // Store eye results for saving
 
     private var currentZoomRatio = 1.0f
 
@@ -97,23 +98,29 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
     // Listener specifically for the Eyes Model
     private val eyesListener = object : Detector.DetectorListener {
         override fun onEmptyDetect() {
+            lastEyeResults = emptyList()
             activity?.runOnUiThread {
                 if (_binding != null) {
                     binding.eyesCountLabel.text = "Eyes: 0"
                     binding.eyesCountLabel.visibility = View.VISIBLE
                     // Clear only eye boxes
                     binding.overlay.setEyeResults(emptyList())
+                    // Hide loading indicator
+                    binding.loadingProgress.visibility = View.GONE
                 }
             }
         }
 
         override fun onDetect(boundingBoxes: List<BoundingBox>, inferenceTime: Long) {
+            lastEyeResults = boundingBoxes
             activity?.runOnUiThread {
                 if (_binding != null) {
                     binding.eyesCountLabel.text = "Eyes: ${boundingBoxes.size}"
                     binding.eyesCountLabel.visibility = View.VISIBLE
                     // Draw eye boxes
                     binding.overlay.setEyeResults(boundingBoxes)
+                    // Hide loading indicator
+                    binding.loadingProgress.visibility = View.GONE
                 }
             }
         }
@@ -135,7 +142,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
 
         cameraExecutor.execute {
             detector = Detector(requireContext(), MODEL_PATH, LABELS_PATH, this)
-            // UPDATED: Using "eyes_identify.tflite" as requested
             detectorEyes = Detector(requireContext(), "eyes_identify.tflite", "eyes_labels.txt", eyesListener)
         }
 
@@ -209,6 +215,9 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                         binding.viewFinder.visibility = View.INVISIBLE
                         binding.overlay.setImageDimensions(bmp.width, bmp.height)
 
+                        // Show Loading
+                        binding.loadingProgress.visibility = View.VISIBLE
+
                         cameraExecutor.execute {
                             detector?.detect(bmp)
                             detectorEyes?.detect(bmp)
@@ -261,6 +270,9 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             binding.overlay.setImageDimensions(bitmap.width, bitmap.height)
             binding.saveDialog.visibility = View.VISIBLE
 
+            // Show Loading
+            binding.loadingProgress.visibility = View.VISIBLE
+
             cameraExecutor.execute {
                 detector?.detect(bitmap)
                 detectorEyes?.detect(bitmap)
@@ -276,6 +288,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         binding.saveDialog.visibility = View.GONE
         binding.zoomLevel.visibility = View.GONE
         binding.eyesCountLabel.visibility = View.GONE
+        binding.loadingProgress.visibility = View.GONE
 
         binding.fab.setImageResource(R.drawable.ic_camera)
         binding.overlay.setCameraMode()
@@ -347,7 +360,11 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
     private fun saveCurrentDetection() {
         val bitmapToSave = lastBitmap ?: return
         val resultsToSave = lastResults
-        var currentLat = 0.0; var currentLng = 0.0; var placeName = getString(R.string.location_not_available)
+        val eyesToSave = lastEyeResults // Get eyes data
+
+        var currentLat = 0.0
+        var currentLng = 0.0
+        var placeName = getString(R.string.location_not_available)
 
         try {
             if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
@@ -373,9 +390,11 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             val mutableBitmap = bitmapToSave.copy(Bitmap.Config.ARGB_8888, true)
             val canvas = Canvas(mutableBitmap)
             val boxPaint = Paint().apply { color = ContextCompat.getColor(requireContext(), R.color.bounding_box_color); style = Paint.Style.STROKE; strokeWidth = 8f }
+            val eyePaint = Paint().apply { color = ContextCompat.getColor(requireContext(), R.color.overlay_red); style = Paint.Style.STROKE; strokeWidth = 8f } // Red for eyes
             val textPaint = Paint().apply { color = Color.WHITE; textSize = 40f; style = Paint.Style.FILL }
             val textBgPaint = Paint().apply { color = Color.BLACK; style = Paint.Style.FILL }
 
+            // Draw Fish
             resultsToSave.forEach { box ->
                 val left = box.x1 * mutableBitmap.width; val top = box.y1 * mutableBitmap.height
                 val right = box.x2 * mutableBitmap.width; val bottom = box.y2 * mutableBitmap.height
@@ -386,16 +405,40 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                 canvas.drawText(text, left, top + bounds.height(), textPaint)
             }
 
+            // Draw Eyes (No labels, just boxes)
+            eyesToSave.forEach { box ->
+                val left = box.x1 * mutableBitmap.width
+                val top = box.y1 * mutableBitmap.height
+                val right = box.x2 * mutableBitmap.width
+                val bottom = box.y2 * mutableBitmap.height
+                canvas.drawRect(left, top, right, bottom, eyePaint)
+            }
+
             val filename = "fish_detect_${System.currentTimeMillis()}.jpg"
             val file = File(requireContext().filesDir, filename)
             val out = FileOutputStream(file)
             mutableBitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
             out.flush(); out.close()
 
-            val fishCounts = resultsToSave.groupBy { it.clsName }.map { "${it.key}: ${it.value.size}" }.joinToString(", ")
-            val details = "Total: ${resultsToSave.size}, Conf: ${resultsToSave.map { String.format("%.2f", it.cnf) }}"
+            // Prepare counts string
+            val fishCountList = resultsToSave.groupBy { it.clsName }.map { "${it.key}: ${it.value.size}" }.toMutableList()
+            if (eyesToSave.isNotEmpty()) {
+                fishCountList.add("Eyes: ${eyesToSave.size}")
+            }
+            val countsString = fishCountList.joinToString(", ")
 
-            dbHelper.insertDetection(System.currentTimeMillis(), file.absolutePath, fishCounts.ifEmpty { getString(R.string.none) }, details, currentLat, currentLng, placeName)
+            val details = "Total: ${resultsToSave.size}, Eyes: ${eyesToSave.size}, Conf: ${resultsToSave.map { String.format("%.2f", it.cnf) }}"
+
+            dbHelper.insertDetection(
+                timestamp = System.currentTimeMillis(),
+                imagePath = file.absolutePath,
+                fishCount = countsString.ifEmpty { getString(R.string.none) },
+                details = details,
+                lat = currentLat,
+                lng = currentLng,
+                placeName = placeName
+            )
+
             Toast.makeText(context, getString(R.string.saved_at_place, placeName), Toast.LENGTH_SHORT).show()
             triggerBackgroundSync()
         } catch (e: Exception) {

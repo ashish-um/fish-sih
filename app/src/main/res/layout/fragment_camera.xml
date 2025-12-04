@@ -123,6 +123,21 @@
             app:layout_constraintTop_toBottomOf="@+id/detectionTitle"
             tools:text="@string/total_detected_placeholder" />
 
+        <TextView
+            android:id="@+id/eyesCountLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="4dp"
+            android:textColor="#2E7D32"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:text="Eyes: 0"
+            android:visibility="gone"
+            app:layout_constraintStart_toEndOf="@+id/totalCountLabel"
+            app:layout_constraintTop_toBottomOf="@+id/detectionTitle"
+            tools:visibility="visible" />
+
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/detectionList"
             android:layout_width="0dp"

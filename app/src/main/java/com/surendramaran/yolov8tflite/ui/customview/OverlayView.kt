@@ -10,11 +10,15 @@ import android.view.View
 import androidx.core.content.ContextCompat
 import com.surendramaran.yolov8tflite.R
 import com.surendramaran.yolov8tflite.ml.BoundingBox
+import kotlin.math.min
 
 class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs) {
 
     private var results = listOf<BoundingBox>()
+    private var eyeResults = listOf<BoundingBox>() // New list for eyes
+
     private var boxPaint = Paint()
+    private var eyeBoxPaint = Paint() // New paint for eyes
     private var textBackgroundPaint = Paint()
     private var textPaint = Paint()
 
@@ -31,9 +35,11 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
 
     fun clear() {
         results = listOf()
+        eyeResults = listOf()
         textPaint.reset()
         textBackgroundPaint.reset()
         boxPaint.reset()
+        eyeBoxPaint.reset()
         invalidate()
         initPaints()
     }
@@ -50,12 +56,25 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
         boxPaint.color = ContextCompat.getColor(context!!, R.color.bounding_box_color)
         boxPaint.strokeWidth = 8F
         boxPaint.style = Paint.Style.STROKE
+
+        // Initialize Eye Box Paint (Red)
+        eyeBoxPaint.color = ContextCompat.getColor(context!!, R.color.overlay_red)
+        eyeBoxPaint.strokeWidth = 8F
+        eyeBoxPaint.style = Paint.Style.STROKE
     }
 
     override fun draw(canvas: Canvas) {
         super.draw(canvas)
 
-        results.forEach {
+        // Draw Fish Boxes (with labels)
+        drawBoxes(canvas, results, boxPaint, true)
+
+        // Draw Eye Boxes (No labels to avoid clutter)
+        drawBoxes(canvas, eyeResults, eyeBoxPaint, false)
+    }
+
+    private fun drawBoxes(canvas: Canvas, boxes: List<BoundingBox>, paint: Paint, drawLabel: Boolean) {
+        boxes.forEach {
             val left: Float
             val top: Float
             val right: Float
@@ -65,7 +84,7 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
                 // Calculate scaling and positioning for centered image
                 val scaleX = width.toFloat() / imageWidth
                 val scaleY = height.toFloat() / imageHeight
-                val scale = minOf(scaleX, scaleY)
+                val scale = min(scaleX, scaleY)
 
                 val scaledWidth = imageWidth * scale
                 val scaledHeight = imageHeight * scale
@@ -84,25 +103,32 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
                 bottom = it.y2 * height
             }
 
-            canvas.drawRect(left, top, right, bottom, boxPaint)
-            val drawableText = "${it.clsName} ${String.format("%.2f", it.cnf)}"
+            canvas.drawRect(left, top, right, bottom, paint)
 
-            textBackgroundPaint.getTextBounds(drawableText, 0, drawableText.length, bounds)
-            val textWidth = bounds.width()
-            val textHeight = bounds.height()
-            canvas.drawRect(
-                left,
-                top,
-                left + textWidth + BOUNDING_RECT_TEXT_PADDING,
-                top + textHeight + BOUNDING_RECT_TEXT_PADDING,
-                textBackgroundPaint
-            )
-            canvas.drawText(drawableText, left, top + bounds.height(), textPaint)
+            if (drawLabel) {
+                val drawableText = "${it.clsName} ${String.format("%.2f", it.cnf)}"
+                textBackgroundPaint.getTextBounds(drawableText, 0, drawableText.length, bounds)
+                val textWidth = bounds.width()
+                val textHeight = bounds.height()
+                canvas.drawRect(
+                    left,
+                    top,
+                    left + textWidth + BOUNDING_RECT_TEXT_PADDING,
+                    top + textHeight + BOUNDING_RECT_TEXT_PADDING,
+                    textBackgroundPaint
+                )
+                canvas.drawText(drawableText, left, top + bounds.height(), textPaint)
+            }
         }
     }
 
     fun setResults(boundingBoxes: List<BoundingBox>) {
         results = boundingBoxes
+        invalidate()
+    }
+
+    fun setEyeResults(boundingBoxes: List<BoundingBox>) {
+        eyeResults = boundingBoxes
         invalidate()
     }
 

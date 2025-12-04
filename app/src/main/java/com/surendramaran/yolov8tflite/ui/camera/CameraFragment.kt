@@ -67,6 +67,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
     private var camera: Camera? = null
     private var cameraProvider: ProcessCameraProvider? = null
     private var detector: Detector? = null
+    private var detectorEyes: Detector? = null
 
     private lateinit var cameraExecutor: ExecutorService
     private var isCameraRunning = true
@@ -77,7 +78,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
     private var lastBitmap: Bitmap? = null
     private var lastResults: List<BoundingBox> = emptyList()
 
-    // Track zoom level to restore it after pausing/resuming
     private var currentZoomRatio = 1.0f
 
     private val galleryLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
@@ -91,6 +91,31 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         } else if (result.resultCode == UCrop.RESULT_ERROR) {
             val error = UCrop.getError(result.data!!)
             Toast.makeText(context, getString(R.string.crop_error_with_message, error?.message), Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Listener specifically for the Eyes Model
+    private val eyesListener = object : Detector.DetectorListener {
+        override fun onEmptyDetect() {
+            activity?.runOnUiThread {
+                if (_binding != null) {
+                    binding.eyesCountLabel.text = "Eyes: 0"
+                    binding.eyesCountLabel.visibility = View.VISIBLE
+                    // Clear only eye boxes
+                    binding.overlay.setEyeResults(emptyList())
+                }
+            }
+        }
+
+        override fun onDetect(boundingBoxes: List<BoundingBox>, inferenceTime: Long) {
+            activity?.runOnUiThread {
+                if (_binding != null) {
+                    binding.eyesCountLabel.text = "Eyes: ${boundingBoxes.size}"
+                    binding.eyesCountLabel.visibility = View.VISIBLE
+                    // Draw eye boxes
+                    binding.overlay.setEyeResults(boundingBoxes)
+                }
+            }
         }
     }
 
@@ -110,6 +135,8 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
 
         cameraExecutor.execute {
             detector = Detector(requireContext(), MODEL_PATH, LABELS_PATH, this)
+            // UPDATED: Using "eyes_identify.tflite" as requested
+            detectorEyes = Detector(requireContext(), "eyes_identify.tflite", "eyes_labels.txt", eyesListener)
         }
 
         setupRecyclerView()
@@ -133,29 +160,19 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
 
     private fun bindListeners() {
         binding.apply {
-
-            // --- ZOOM LOGIC ---
             val scaleGestureDetector = ScaleGestureDetector(requireContext(), object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
                 override fun onScale(detector: ScaleGestureDetector): Boolean {
                     val zoomState = camera?.cameraInfo?.zoomState?.value ?: return false
                     val currentRatio = zoomState.zoomRatio
                     val delta = detector.scaleFactor
                     val newZoomRatio = currentRatio * delta
-
                     camera?.cameraControl?.setZoomRatio(newZoomRatio)
-
-                    // Save for restoration
                     currentZoomRatio = newZoomRatio
-
                     val roundedZoom = String.format("%.1fx", newZoomRatio)
                     zoomLevel.text = roundedZoom
                     zoomLevel.visibility = View.VISIBLE
-
                     zoomLevel.removeCallbacks { zoomLevel.visibility = View.GONE }
-                    zoomLevel.postDelayed({
-                        if (_binding != null) zoomLevel.visibility = View.GONE
-                    }, 2000)
-
+                    zoomLevel.postDelayed({ if (_binding != null) zoomLevel.visibility = View.GONE }, 2000)
                     return true
                 }
             })
@@ -179,33 +196,26 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             }
 
             fab.setOnClickListener {
-                // 1. If viewing a static image (Review or Paused), RESUME camera
                 if (binding.imagePreview.visibility == View.VISIBLE) {
                     restartCameraPreview()
-                }
-                // 2. If camera is running, CAPTURE, DISPLAY & RUN MODEL
-                else if (isCameraRunning) {
+                } else if (isCameraRunning) {
                     isCameraRunning = false
                     cameraProvider?.unbindAll()
-
-                    // Change icon to Play (Resume)
                     fab.setImageResource(android.R.drawable.ic_media_play)
 
                     lastBitmap?.let { bmp ->
                         binding.imagePreview.setImageBitmap(bmp)
                         binding.imagePreview.visibility = View.VISIBLE
                         binding.viewFinder.visibility = View.INVISIBLE
-
                         binding.overlay.setImageDimensions(bmp.width, bmp.height)
 
                         cameraExecutor.execute {
                             detector?.detect(bmp)
+                            detectorEyes?.detect(bmp)
                         }
                     }
                     binding.saveDialog.visibility = View.VISIBLE
-                }
-                // 3. Fallback
-                else {
+                } else {
                     restartCameraPreview()
                 }
             }
@@ -216,13 +226,8 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         binding.imagePreview.visibility = View.VISIBLE
         binding.viewFinder.visibility = View.INVISIBLE
         binding.saveDialog.visibility = View.GONE
-
-        // Ensure icon is set to Play (Resume) since we are still paused
         binding.fab.setImageResource(android.R.drawable.ic_media_play)
-
-        lastBitmap?.let {
-            binding.overlay.setImageDimensions(it.width, it.height)
-        }
+        lastBitmap?.let { binding.overlay.setImageDimensions(it.width, it.height) }
         isCameraRunning = false
     }
 
@@ -244,8 +249,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         try {
             cameraProvider?.unbindAll()
             isCameraRunning = false
-
-            // Gallery mode is a "Paused" state, so show Play icon
             binding.fab.setImageResource(android.R.drawable.ic_media_play)
 
             val inputStream = requireContext().contentResolver.openInputStream(uri)
@@ -256,10 +259,12 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             binding.imagePreview.visibility = View.VISIBLE
             binding.imagePreview.setImageBitmap(bitmap)
             binding.overlay.setImageDimensions(bitmap.width, bitmap.height)
-
             binding.saveDialog.visibility = View.VISIBLE
 
-            cameraExecutor.execute { detector?.detect(bitmap) }
+            cameraExecutor.execute {
+                detector?.detect(bitmap)
+                detectorEyes?.detect(bitmap)
+            }
         } catch (e: Exception) {
             Log.e(TAG, getString(R.string.error_loading_gallery_image), e)
         }
@@ -270,11 +275,11 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         binding.viewFinder.visibility = View.VISIBLE
         binding.saveDialog.visibility = View.GONE
         binding.zoomLevel.visibility = View.GONE
+        binding.eyesCountLabel.visibility = View.GONE
 
-        // Change icon back to Camera
         binding.fab.setImageResource(R.drawable.ic_camera)
-
         binding.overlay.setCameraMode()
+        binding.overlay.clear()
         startCamera()
         isCameraRunning = true
     }
@@ -290,63 +295,33 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
     private fun bindCameraUseCases() {
         val cameraProvider = cameraProvider ?: throw IllegalStateException(getString(R.string.camera_init_failed))
         val rotation = view?.display?.rotation ?: Surface.ROTATION_0
-
         val viewWidth = binding.viewFinder.width
         val viewHeight = binding.viewFinder.height
-
-        val cameraSelector = CameraSelector.Builder()
-            .requireLensFacing(CameraSelector.LENS_FACING_BACK)
-            .build()
-
-        preview = Preview.Builder()
-            .setTargetAspectRatio(AspectRatio.RATIO_4_3)
-            .setTargetRotation(rotation)
-            .build()
-
-        imageAnalyzer = ImageAnalysis.Builder()
-            .setTargetAspectRatio(AspectRatio.RATIO_4_3)
-            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-            .setTargetRotation(rotation)
-            .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
-            .build()
+        val cameraSelector = CameraSelector.Builder().requireLensFacing(CameraSelector.LENS_FACING_BACK).build()
+        preview = Preview.Builder().setTargetAspectRatio(AspectRatio.RATIO_4_3).setTargetRotation(rotation).build()
+        imageAnalyzer = ImageAnalysis.Builder().setTargetAspectRatio(AspectRatio.RATIO_4_3).setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).setTargetRotation(rotation).setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888).build()
 
         imageAnalyzer?.setAnalyzer(cameraExecutor) { imageProxy ->
-            val bitmapBuffer = Bitmap.createBitmap(
-                imageProxy.width, imageProxy.height, Bitmap.Config.ARGB_8888
-            )
+            val bitmapBuffer = Bitmap.createBitmap(imageProxy.width, imageProxy.height, Bitmap.Config.ARGB_8888)
             imageProxy.use { bitmapBuffer.copyPixelsFromBuffer(imageProxy.planes[0].buffer) }
             imageProxy.close()
 
             val matrix = Matrix().apply {
                 postRotate(imageProxy.imageInfo.rotationDegrees.toFloat())
-                if (isFrontCamera) {
-                    postScale(-1f, 1f, imageProxy.width.toFloat(), imageProxy.height.toFloat())
-                }
+                if (isFrontCamera) postScale(-1f, 1f, imageProxy.width.toFloat(), imageProxy.height.toFloat())
             }
-
-            val rotatedBitmap = Bitmap.createBitmap(
-                bitmapBuffer, 0, 0, bitmapBuffer.width, bitmapBuffer.height, matrix, true
-            )
-
+            val rotatedBitmap = Bitmap.createBitmap(bitmapBuffer, 0, 0, bitmapBuffer.width, bitmapBuffer.height, matrix, true)
             val croppedBitmap = cropBitmapToView(rotatedBitmap, viewWidth, viewHeight)
-
             lastBitmap = croppedBitmap
 
             if (isCameraRunning) {
                 detector?.detect(croppedBitmap)
             }
         }
-
         cameraProvider.unbindAll()
-
         try {
-            camera = cameraProvider.bindToLifecycle(
-                viewLifecycleOwner, cameraSelector, preview, imageAnalyzer
-            )
-
-            // Restore previous zoom level
+            camera = cameraProvider.bindToLifecycle(viewLifecycleOwner, cameraSelector, preview, imageAnalyzer)
             camera?.cameraControl?.setZoomRatio(currentZoomRatio)
-
             preview?.setSurfaceProvider(binding.viewFinder.surfaceProvider)
         } catch (exc: Exception) {
             Log.e(TAG, getString(R.string.use_case_binding_failed), exc)
@@ -356,108 +331,57 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
     private fun cropBitmapToView(bitmap: Bitmap, viewWidth: Int, viewHeight: Int): Bitmap {
         val bitmapWidth = bitmap.width
         val bitmapHeight = bitmap.height
-
         if (viewWidth == 0 || viewHeight == 0) return bitmap
-
         val bitmapRatio = bitmapWidth.toFloat() / bitmapHeight
         val viewRatio = viewWidth.toFloat() / viewHeight
-
-        var cropX = 0
-        var cropY = 0
-        var cropWidth = bitmapWidth
-        var cropHeight = bitmapHeight
-
+        var cropX = 0; var cropY = 0; var cropWidth = bitmapWidth; var cropHeight = bitmapHeight
         if (bitmapRatio > viewRatio) {
-            cropHeight = bitmapHeight
-            cropWidth = (bitmapHeight * viewRatio).toInt()
-            cropX = (bitmapWidth - cropWidth) / 2
+            cropHeight = bitmapHeight; cropWidth = (bitmapHeight * viewRatio).toInt(); cropX = (bitmapWidth - cropWidth) / 2
         } else {
-            cropWidth = bitmapWidth
-            cropHeight = (bitmapWidth / viewRatio).toInt()
-            cropY = (bitmapHeight - cropHeight) / 2
+            cropWidth = bitmapWidth; cropHeight = (bitmapWidth / viewRatio).toInt(); cropY = (bitmapHeight - cropHeight) / 2
         }
-
-        if (cropWidth <= 0) cropWidth = 1
-        if (cropHeight <= 0) cropHeight = 1
-        if (cropX < 0) cropX = 0
-        if (cropY < 0) cropY = 0
-
+        if (cropWidth <= 0) cropWidth = 1; if (cropHeight <= 0) cropHeight = 1; if (cropX < 0) cropX = 0; if (cropY < 0) cropY = 0
         return Bitmap.createBitmap(bitmap, cropX, cropY, cropWidth, cropHeight)
     }
 
     private fun saveCurrentDetection() {
         val bitmapToSave = lastBitmap ?: return
         val resultsToSave = lastResults
-
-        var currentLat = 0.0
-        var currentLng = 0.0
-        var placeName = getString(R.string.location_not_available)
+        var currentLat = 0.0; var currentLng = 0.0; var placeName = getString(R.string.location_not_available)
 
         try {
             if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
                 val locationManager = requireContext().getSystemService(Context.LOCATION_SERVICE) as LocationManager
-                val lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-                    ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-
+                val lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER) ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
                 if (lastKnownLocation != null) {
-                    currentLat = lastKnownLocation.latitude
-                    currentLng = lastKnownLocation.longitude
-
+                    currentLat = lastKnownLocation.latitude; currentLng = lastKnownLocation.longitude
                     try {
                         val geocoder = Geocoder(requireContext(), Locale.getDefault())
                         @Suppress("DEPRECATION")
                         val addresses = geocoder.getFromLocation(currentLat, currentLng, 1)
                         if (!addresses.isNullOrEmpty()) {
-                            val address = addresses[0]
-                            val locality = address.locality ?: address.subAdminArea ?: ""
-                            val state = address.adminArea ?: ""
-                            placeName = if (locality.isNotEmpty()) "$locality, $state" else state
-                            if (placeName.isEmpty() || placeName == ", ") {
-                                placeName = address.getAddressLine(0)
-                            }
+                            placeName = addresses[0].locality ?: addresses[0].getAddressLine(0)
                         } else {
                             placeName = getString(R.string.lat_lng_location, currentLat, currentLng)
                         }
-                    } catch (e: Exception) {
-                        Log.e(TAG, getString(R.string.geocoder_failed), e)
-                        placeName = getString(R.string.lat_lng_location, currentLat, currentLng)
-                    }
+                    } catch (e: Exception) { placeName = getString(R.string.lat_lng_location, currentLat, currentLng) }
                 }
             }
-        } catch (e: Exception) {
-            Log.e(TAG, getString(R.string.location_error), e)
-        }
+        } catch (e: Exception) { Log.e(TAG, getString(R.string.location_error), e) }
 
         try {
             val mutableBitmap = bitmapToSave.copy(Bitmap.Config.ARGB_8888, true)
             val canvas = Canvas(mutableBitmap)
-
-            val boxPaint = Paint().apply {
-                color = ContextCompat.getColor(requireContext(), R.color.bounding_box_color)
-                style = Paint.Style.STROKE
-                strokeWidth = 8f
-            }
-            val textPaint = Paint().apply {
-                color = Color.WHITE
-                textSize = 40f
-                style = Paint.Style.FILL
-            }
-            val textBgPaint = Paint().apply {
-                color = Color.BLACK
-                style = Paint.Style.FILL
-            }
+            val boxPaint = Paint().apply { color = ContextCompat.getColor(requireContext(), R.color.bounding_box_color); style = Paint.Style.STROKE; strokeWidth = 8f }
+            val textPaint = Paint().apply { color = Color.WHITE; textSize = 40f; style = Paint.Style.FILL }
+            val textBgPaint = Paint().apply { color = Color.BLACK; style = Paint.Style.FILL }
 
             resultsToSave.forEach { box ->
-                val left = box.x1 * mutableBitmap.width
-                val top = box.y1 * mutableBitmap.height
-                val right = box.x2 * mutableBitmap.width
-                val bottom = box.y2 * mutableBitmap.height
-
+                val left = box.x1 * mutableBitmap.width; val top = box.y1 * mutableBitmap.height
+                val right = box.x2 * mutableBitmap.width; val bottom = box.y2 * mutableBitmap.height
                 canvas.drawRect(left, top, right, bottom, boxPaint)
                 val text = "${box.clsName} ${String.format("%.2f", box.cnf)}"
-                val bounds = Rect()
-                textPaint.getTextBounds(text, 0, text.length, bounds)
-
+                val bounds = Rect(); textPaint.getTextBounds(text, 0, text.length, bounds)
                 canvas.drawRect(left, top, left + bounds.width() + 16, top + bounds.height() + 16, textBgPaint)
                 canvas.drawText(text, left, top + bounds.height(), textPaint)
             }
@@ -466,26 +390,14 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             val file = File(requireContext().filesDir, filename)
             val out = FileOutputStream(file)
             mutableBitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
-            out.flush()
-            out.close()
+            out.flush(); out.close()
 
             val fishCounts = resultsToSave.groupBy { it.clsName }.map { "${it.key}: ${it.value.size}" }.joinToString(", ")
             val details = "Total: ${resultsToSave.size}, Conf: ${resultsToSave.map { String.format("%.2f", it.cnf) }}"
 
-            dbHelper.insertDetection(
-                timestamp = System.currentTimeMillis(),
-                imagePath = file.absolutePath,
-                fishCount = fishCounts.ifEmpty { getString(R.string.none) },
-                details = details,
-                lat = currentLat,
-                lng = currentLng,
-                placeName = placeName
-            )
-
+            dbHelper.insertDetection(System.currentTimeMillis(), file.absolutePath, fishCounts.ifEmpty { getString(R.string.none) }, details, currentLat, currentLng, placeName)
             Toast.makeText(context, getString(R.string.saved_at_place, placeName), Toast.LENGTH_SHORT).show()
-
             triggerBackgroundSync()
-
         } catch (e: Exception) {
             Log.e(TAG, getString(R.string.error_saving_detection), e)
             Toast.makeText(context, getString(R.string.error_saving, e.message), Toast.LENGTH_SHORT).show()
@@ -493,32 +405,15 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
     }
 
     private fun triggerBackgroundSync() {
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .build()
-
-        val syncRequest = OneTimeWorkRequest.Builder(SyncWorker::class.java)
-            .setConstraints(constraints)
-            .setBackoffCriteria(BackoffPolicy.LINEAR, 10, TimeUnit.SECONDS)
-            .build()
-
-        WorkManager.getInstance(requireContext()).enqueueUniqueWork(
-            "HistoryUploadWork",
-            ExistingWorkPolicy.APPEND,
-            syncRequest
-        )
+        val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+        val syncRequest = OneTimeWorkRequest.Builder(SyncWorker::class.java).setConstraints(constraints).setBackoffCriteria(BackoffPolicy.LINEAR, 10, TimeUnit.SECONDS).build()
+        WorkManager.getInstance(requireContext()).enqueueUniqueWork("HistoryUploadWork", ExistingWorkPolicy.APPEND, syncRequest)
     }
 
-    private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
-        ContextCompat.checkSelfPermission(requireContext(), it) == PackageManager.PERMISSION_GRANTED
-    }
+    private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all { ContextCompat.checkSelfPermission(requireContext(), it) == PackageManager.PERMISSION_GRANTED }
 
-    private val requestPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        if (permissions[Manifest.permission.CAMERA] == true) {
-            binding.viewFinder.post { startCamera() }
-        }
+    private val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+        if (permissions[Manifest.permission.CAMERA] == true) binding.viewFinder.post { startCamera() }
     }
 
     override fun onDestroyView() {
@@ -529,16 +424,15 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
     override fun onDestroy() {
         super.onDestroy()
         detector?.close()
-        if (::cameraExecutor.isInitialized) {
-            cameraExecutor.shutdown()
-        }
+        detectorEyes?.close()
+        if (::cameraExecutor.isInitialized) cameraExecutor.shutdown()
     }
 
     override fun onEmptyDetect() {
         lastResults = emptyList()
         activity?.runOnUiThread {
             if (_binding != null) {
-                binding.overlay.clear()
+                binding.overlay.setResults(emptyList())
                 binding.totalCountLabel.text = getString(R.string.total_detected, 0)
                 binding.noDetectionText.visibility = View.VISIBLE
                 binding.detectionList.visibility = View.GONE
@@ -552,16 +446,12 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         activity?.runOnUiThread {
             if (_binding != null) {
                 binding.inferenceTime.text = getString(R.string.inference_time_ms, inferenceTime)
-                binding.overlay.apply {
-                    setResults(boundingBoxes)
-                    invalidate()
-                }
-                val fishCounts = boundingBoxes.groupBy { it.clsName }
-                    .map { (name, boxes) ->
-                        val avgConf = boxes.map { it.cnf }.average().toFloat()
-                        DetectionItem(name, boxes.size, avgConf)
-                    }
-                    .sortedByDescending { it.count }
+                binding.overlay.setResults(boundingBoxes)
+
+                val fishCounts = boundingBoxes.groupBy { it.clsName }.map { (name, boxes) ->
+                    val avgConf = boxes.map { it.cnf }.average().toFloat()
+                    DetectionItem(name, boxes.size, avgConf)
+                }.sortedByDescending { it.count }
 
                 binding.totalCountLabel.text = getString(R.string.total_detected, boundingBoxes.size)
                 if (fishCounts.isEmpty()) {
@@ -578,10 +468,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
 
     companion object {
         private const val TAG = "Camera"
-        private val REQUIRED_PERMISSIONS = mutableListOf(
-            Manifest.permission.CAMERA,
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        ).toTypedArray()
+        private val REQUIRED_PERMISSIONS = mutableListOf(Manifest.permission.CAMERA, Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION).toTypedArray()
     }
 }

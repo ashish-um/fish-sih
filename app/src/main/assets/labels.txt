@@ -1,8 +1,12 @@
-3 spotted crab
+Catfish
+Catla
+Hilsa
+Mackerel
+Mud Crab
+Pomfret
+Rohu
 Salmon
-hilsa
-mud crab
-pomfret
-sardine
-shrimp
-tuna
+Sardine
+Shrimp
+Three Spotted Crab
+Tuna

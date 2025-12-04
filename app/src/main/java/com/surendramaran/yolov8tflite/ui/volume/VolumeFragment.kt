@@ -234,36 +234,68 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
     private fun detectArUcoMarkers(bitmap: Bitmap): Triple<Bitmap, Float, Boolean> {
         val mat = Mat()
         org.opencv.android.Utils.bitmapToMat(bitmap, mat)
+
         val rgbMat = Mat()
         Imgproc.cvtColor(mat, rgbMat, Imgproc.COLOR_RGBA2RGB)
+
         val grayMat = Mat()
         Imgproc.cvtColor(mat, grayMat, Imgproc.COLOR_RGBA2GRAY)
-        val dictionary = Aruco.getPredefinedDictionary(Aruco.DICT_4X4_50)
+
+        // Using the list of dictionaries to ensure we catch your specific marker type
+        val dicts = listOf(
+            Aruco.DICT_4X4_50,
+            Aruco.DICT_5X5_50,
+            Aruco.DICT_6X6_50,
+            Aruco.DICT_APRILTAG_36h11
+        )
+
         val corners = ArrayList<Mat>()
         val ids = Mat()
         val parameters = DetectorParameters.create()
-        var detectedScale = 50.0f
-        var markerFound = false
 
-        try {
-            Aruco.detectMarkers(grayMat, dictionary, corners, ids, parameters)
-            if (ids.rows() > 0) {
-                Scalar(0.0, 255.0, 0.0).let { green ->
-                    Aruco.drawDetectedMarkers(rgbMat, corners, ids, green)
+        var markerFound = false
+        var detectedScale = 50.0f // Default fallback
+
+        for (dictId in dicts) {
+            val dictionary = Aruco.getPredefinedDictionary(dictId)
+            corners.clear()
+            ids.release()
+
+            try {
+                Aruco.detectMarkers(grayMat, dictionary, corners, ids, parameters)
+
+                if (ids.rows() > 0) {
+                    // Draw the marker outline
+                    Scalar(0.0, 255.0, 0.0).let { green ->
+                        Aruco.drawDetectedMarkers(rgbMat, corners, ids, green)
+                    }
+
+                    // --- UPDATED SIZE HERE ---
+                    val markerRealSizeCm = 4.5f
+                    // ------------------------
+
+                    val c = corners[0]
+                    val xDiff = c.get(0, 0)[0] - c.get(0, 1)[0]
+                    val yDiff = c.get(0, 0)[1] - c.get(0, 1)[1]
+
+                    val widthPx = sqrt(xDiff.pow(2) + yDiff.pow(2)).toFloat()
+
+                    // Scale = Pixels per CM
+                    detectedScale = widthPx / markerRealSizeCm
+                    markerFound = true
+                    break
                 }
-                val c = corners[0]
-                val xDiff = c.get(0, 0)[0] - c.get(0, 1)[0]
-                val yDiff = c.get(0, 0)[1] - c.get(0, 1)[1]
-                val widthPx = sqrt(xDiff.pow(2) + yDiff.pow(2)).toFloat()
-                detectedScale = widthPx / 5.0f
-                markerFound = true
+            } catch (e: Exception) {
+                Log.e("VolumeFragment", "Error detection loop: ${e.message}")
             }
-        } catch (e: Exception) { Log.e("VolumeFragment", getString(R.string.aruco_error), e) }
+        }
 
         val resultBitmap = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
         org.opencv.android.Utils.matToBitmap(rgbMat, resultBitmap)
+
         mat.release(); rgbMat.release(); grayMat.release(); ids.release()
         corners.forEach { it.release() }
+
         return Triple(resultBitmap, detectedScale, markerFound)
     }
 

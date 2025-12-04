@@ -1,5 +1,6 @@
 package com.surendramaran.yolov8tflite.ui.history
 
+import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
@@ -15,6 +16,7 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.widget.Toolbar
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.RecyclerView
@@ -36,6 +38,18 @@ class HistoryDetailFragment : Fragment() {
 
     private var miniMap: MapView? = null
 
+    // Same color palette as CameraFragment to ensure matching colors
+    private val boxColors = listOf(
+        Color.parseColor("#FF5722"), // Orange
+        Color.parseColor("#2979FF"), // Blue
+        Color.parseColor("#00C853"), // Green
+        Color.parseColor("#FFD600"), // Yellow
+        Color.parseColor("#AA00FF"), // Purple
+        Color.parseColor("#E91E63"), // Pink
+        Color.parseColor("#00BCD4"), // Cyan
+        Color.parseColor("#3E2723")  // Brown
+    )
+
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         val context = requireContext()
         Configuration.getInstance().load(context, PreferenceManager.getDefaultSharedPreferences(context))
@@ -45,7 +59,6 @@ class HistoryDetailFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Setup Toolbar Back Action
         val toolbar: Toolbar = view.findViewById(R.id.toolbar)
         toolbar.setNavigationOnClickListener {
             findNavController().navigateUp()
@@ -73,35 +86,45 @@ class HistoryDetailFragment : Fragment() {
 
         miniMap = view.findViewById(R.id.miniMap)
 
-        // 1. Setup Images
         val imagePaths = imagePathRaw.split("|").filter { it.isNotEmpty() }
         val descriptionList = detailsRaw.split(";;;")
         viewPager.adapter = ImagePagerAdapter(imagePaths, descriptionList)
 
-        // 2. Setup Header Info
         val sdf = SimpleDateFormat("MMM dd, yyyy • hh:mm a", Locale.getDefault())
         dateView.text = sdf.format(Date(timestamp))
 
-        // Use a generic title if we are going to show chips, otherwise use the raw title
-        if (titleRaw.contains(",")) {
+        if (titleRaw.contains(",") || titleRaw.contains("%")) {
             titleView.text = "Analysis Report"
         } else {
             titleView.text = titleRaw.ifEmpty { "Detection Result" }
         }
 
-        // 3. Setup Smart Chips (Parse the "Rohu: 2, Catla: 1" string)
+        // --- UPDATED: Chip Logic for Multi-Color ---
         chipGroup.removeAllViews()
         if (titleRaw.isNotEmpty()) {
             val items = titleRaw.split(",").map { it.trim() }
-            for (item in items) {
+
+            items.forEachIndexed { index, item ->
                 if (item.isNotEmpty()) {
                     val chip = Chip(requireContext())
                     chip.text = item
-                    chip.setChipBackgroundColorResource(R.color.white)
-                    chip.setChipStrokeColorResource(R.color.primary)
-                    chip.chipStrokeWidth = 2f
+
+                    // "Eyes" summary usually comes last. We color it distinctively.
+                    if (item.startsWith("Eyes:")) {
+                        chip.chipBackgroundColor = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.white))
+                        chip.setTextColor(ContextCompat.getColor(requireContext(), R.color.overlay_red))
+                        chip.chipStrokeColor = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.overlay_red))
+                        chip.chipStrokeWidth = 2f
+                    } else {
+                        // Apply color cycle for fish detections
+                        // The index here matches the index in the saved list, which matches the drawing loop
+                        val color = boxColors[index % boxColors.size]
+                        chip.chipBackgroundColor = ColorStateList.valueOf(color)
+                        chip.setTextColor(Color.WHITE)
+                        chip.chipStrokeWidth = 0f
+                    }
+
                     chip.textSize = 14f
-                    chip.setTextColor(resources.getColor(R.color.black, null))
                     chip.isClickable = false
                     chipGroup.addView(chip)
                 }
@@ -112,7 +135,6 @@ class HistoryDetailFragment : Fragment() {
             chipGroup.addView(chip)
         }
 
-        // 4. Setup Location
         if (lat != 0.0 && lng != 0.0) {
             placeNameView.text = if (placeName != getString(R.string.unknown)) placeName else "Unknown Location"
             coordsView.text = String.format("%.4f, %.4f", lat, lng)
@@ -123,7 +145,6 @@ class HistoryDetailFragment : Fragment() {
             mapCard.visibility = View.GONE
         }
 
-        // 5. Raw Details
         rawView.text = detailsRaw.replace(";;;", "\n\n")
     }
 
@@ -141,7 +162,6 @@ class HistoryDetailFragment : Fragment() {
             marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
             overlays.add(marker)
 
-            // Disable interception so NestedScrollView handles scrolling
             setOnTouchListener { v, event ->
                 when (event.action) {
                     MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> v.parent.requestDisallowInterceptTouchEvent(true)

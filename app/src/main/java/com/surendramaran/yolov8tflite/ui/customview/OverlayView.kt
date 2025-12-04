@@ -15,16 +15,16 @@ import kotlin.math.min
 class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs) {
 
     private var results = listOf<BoundingBox>()
-    private var eyeResults = listOf<BoundingBox>() // New list for eyes
+    private var resultColors = listOf<Int>() // Store colors for results
+    private var eyeResults = listOf<BoundingBox>()
 
     private var boxPaint = Paint()
-    private var eyeBoxPaint = Paint() // New paint for eyes
+    private var eyeBoxPaint = Paint()
     private var textBackgroundPaint = Paint()
     private var textPaint = Paint()
 
     private var bounds = Rect()
 
-    // For image mode - store the actual image dimensions
     private var imageWidth = 0
     private var imageHeight = 0
     private var isImageMode = false
@@ -35,6 +35,7 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
 
     fun clear() {
         results = listOf()
+        resultColors = listOf()
         eyeResults = listOf()
         textPaint.reset()
         textBackgroundPaint.reset()
@@ -53,11 +54,11 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
         textPaint.style = Paint.Style.FILL
         textPaint.textSize = 50f
 
+        // Base box paint (will be overridden by specific colors)
         boxPaint.color = ContextCompat.getColor(context!!, R.color.bounding_box_color)
         boxPaint.strokeWidth = 8F
         boxPaint.style = Paint.Style.STROKE
 
-        // Initialize Eye Box Paint (Red)
         eyeBoxPaint.color = ContextCompat.getColor(context!!, R.color.overlay_red)
         eyeBoxPaint.strokeWidth = 8F
         eyeBoxPaint.style = Paint.Style.STROKE
@@ -66,22 +67,32 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
     override fun draw(canvas: Canvas) {
         super.draw(canvas)
 
-        // Draw Fish Boxes (with labels)
-        drawBoxes(canvas, results, boxPaint, true)
+        // Draw Fish Boxes with specific colors
+        drawBoxes(canvas, results, boxPaint, true, resultColors)
 
-        // Draw Eye Boxes (No labels to avoid clutter)
-        drawBoxes(canvas, eyeResults, eyeBoxPaint, false)
+        // Draw Eye Boxes (Red)
+        drawBoxes(canvas, eyeResults, eyeBoxPaint, false, emptyList())
     }
 
-    private fun drawBoxes(canvas: Canvas, boxes: List<BoundingBox>, paint: Paint, drawLabel: Boolean) {
-        boxes.forEach {
+    private fun drawBoxes(
+        canvas: Canvas,
+        boxes: List<BoundingBox>,
+        basePaint: Paint,
+        drawLabel: Boolean,
+        colors: List<Int>
+    ) {
+        boxes.forEachIndexed { index, box ->
+            // Use specific color if available, otherwise default
+            if (colors.isNotEmpty() && index < colors.size) {
+                basePaint.color = colors[index]
+            }
+
             val left: Float
             val top: Float
             val right: Float
             val bottom: Float
 
             if (isImageMode && imageWidth > 0 && imageHeight > 0) {
-                // Calculate scaling and positioning for centered image
                 val scaleX = width.toFloat() / imageWidth
                 val scaleY = height.toFloat() / imageHeight
                 val scale = min(scaleX, scaleY)
@@ -91,25 +102,27 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
                 val offsetX = (width - scaledWidth) / 2
                 val offsetY = (height - scaledHeight) / 2
 
-                left = it.x1 * scaledWidth + offsetX
-                top = it.y1 * scaledHeight + offsetY
-                right = it.x2 * scaledWidth + offsetX
-                bottom = it.y2 * scaledHeight + offsetY
+                left = box.x1 * scaledWidth + offsetX
+                top = box.y1 * scaledHeight + offsetY
+                right = box.x2 * scaledWidth + offsetX
+                bottom = box.y2 * scaledHeight + offsetY
             } else {
-                // Camera mode - use view dimensions
-                left = it.x1 * width
-                top = it.y1 * height
-                right = it.x2 * width
-                bottom = it.y2 * height
+                left = box.x1 * width
+                top = box.y1 * height
+                right = box.x2 * width
+                bottom = box.y2 * height
             }
 
-            canvas.drawRect(left, top, right, bottom, paint)
+            canvas.drawRect(left, top, right, bottom, basePaint)
 
             if (drawLabel) {
-                val drawableText = "${it.clsName} ${String.format("%.2f", it.cnf)}"
+                val drawableText = "${box.clsName} ${String.format("%.2f", box.cnf)}"
                 textBackgroundPaint.getTextBounds(drawableText, 0, drawableText.length, bounds)
                 val textWidth = bounds.width()
                 val textHeight = bounds.height()
+
+                // Draw text background using the same color as box but semi-transparent?
+                // Or keep black for readability. Let's keep black.
                 canvas.drawRect(
                     left,
                     top,
@@ -122,8 +135,9 @@ class OverlayView(context: Context?, attrs: AttributeSet?) : View(context, attrs
         }
     }
 
-    fun setResults(boundingBoxes: List<BoundingBox>) {
+    fun setResults(boundingBoxes: List<BoundingBox>, colors: List<Int> = emptyList()) {
         results = boundingBoxes
+        resultColors = colors
         invalidate()
     }
 

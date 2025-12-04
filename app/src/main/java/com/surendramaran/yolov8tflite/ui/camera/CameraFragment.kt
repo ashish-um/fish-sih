@@ -77,9 +77,21 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
     private lateinit var dbHelper: DatabaseHelper
     private var lastBitmap: Bitmap? = null
     private var lastResults: List<BoundingBox> = emptyList()
-    private var lastEyeResults: List<BoundingBox> = emptyList() // Store eye results for saving
+    private var lastEyeResults: List<BoundingBox> = emptyList()
 
     private var currentZoomRatio = 1.0f
+
+    // Color Palette
+    private val boxColors = listOf(
+        Color.parseColor("#FF5722"), // Orange
+        Color.parseColor("#2979FF"), // Blue
+        Color.parseColor("#00C853"), // Green
+        Color.parseColor("#FFD600"), // Yellow
+        Color.parseColor("#AA00FF"), // Purple
+        Color.parseColor("#E91E63"), // Pink
+        Color.parseColor("#00BCD4"), // Cyan
+        Color.parseColor("#3E2723")  // Brown
+    )
 
     private val galleryLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let { startCrop(it) }
@@ -95,7 +107,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         }
     }
 
-    // Listener specifically for the Eyes Model
     private val eyesListener = object : Detector.DetectorListener {
         override fun onEmptyDetect() {
             lastEyeResults = emptyList()
@@ -103,9 +114,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                 if (_binding != null) {
                     binding.eyesCountLabel.text = getString(R.string.eyes_count_default)
                     binding.eyesCountLabel.visibility = View.VISIBLE
-                    // Clear only eye boxes
                     binding.overlay.setEyeResults(emptyList())
-                    // Hide loading indicator
                     binding.loadingProgress.visibility = View.GONE
                 }
             }
@@ -117,9 +126,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                 if (_binding != null) {
                     binding.eyesCountLabel.text = getString(R.string.eyes_count_label, boundingBoxes.size)
                     binding.eyesCountLabel.visibility = View.VISIBLE
-                    // Draw eye boxes
                     binding.overlay.setEyeResults(boundingBoxes)
-                    // Hide loading indicator
                     binding.loadingProgress.visibility = View.GONE
                 }
             }
@@ -214,8 +221,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                         binding.imagePreview.visibility = View.VISIBLE
                         binding.viewFinder.visibility = View.INVISIBLE
                         binding.overlay.setImageDimensions(bmp.width, bmp.height)
-
-                        // Show Loading
                         binding.loadingProgress.visibility = View.VISIBLE
 
                         cameraExecutor.execute {
@@ -269,8 +274,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             binding.imagePreview.setImageBitmap(bitmap)
             binding.overlay.setImageDimensions(bitmap.width, bitmap.height)
             binding.saveDialog.visibility = View.VISIBLE
-
-            // Show Loading
             binding.loadingProgress.visibility = View.VISIBLE
 
             cameraExecutor.execute {
@@ -360,7 +363,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
     private fun saveCurrentDetection() {
         val bitmapToSave = lastBitmap ?: return
         val resultsToSave = lastResults
-        val eyesToSave = lastEyeResults // Get eyes data
+        val eyesToSave = lastEyeResults
 
         var currentLat = 0.0
         var currentLng = 0.0
@@ -389,13 +392,16 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         try {
             val mutableBitmap = bitmapToSave.copy(Bitmap.Config.ARGB_8888, true)
             val canvas = Canvas(mutableBitmap)
-            val boxPaint = Paint().apply { color = ContextCompat.getColor(requireContext(), R.color.bounding_box_color); style = Paint.Style.STROKE; strokeWidth = 8f }
-            val eyePaint = Paint().apply { color = ContextCompat.getColor(requireContext(), R.color.overlay_red); style = Paint.Style.STROKE; strokeWidth = 8f } // Red for eyes
+            val boxPaint = Paint().apply { style = Paint.Style.STROKE; strokeWidth = 8f }
+            val eyePaint = Paint().apply { color = ContextCompat.getColor(requireContext(), R.color.overlay_red); style = Paint.Style.STROKE; strokeWidth = 8f }
             val textPaint = Paint().apply { color = Color.WHITE; textSize = 40f; style = Paint.Style.FILL }
             val textBgPaint = Paint().apply { color = Color.BLACK; style = Paint.Style.FILL }
 
-            // Draw Fish
-            resultsToSave.forEach { box ->
+            resultsToSave.forEachIndexed { index, box ->
+                // Apply Cycling Color
+                val color = boxColors[index % boxColors.size]
+                boxPaint.color = color
+
                 val left = box.x1 * mutableBitmap.width; val top = box.y1 * mutableBitmap.height
                 val right = box.x2 * mutableBitmap.width; val bottom = box.y2 * mutableBitmap.height
                 canvas.drawRect(left, top, right, bottom, boxPaint)
@@ -405,7 +411,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                 canvas.drawText(text, left, top + bounds.height(), textPaint)
             }
 
-            // Draw Eyes (No labels, just boxes)
             eyesToSave.forEach { box ->
                 val left = box.x1 * mutableBitmap.width
                 val top = box.y1 * mutableBitmap.height
@@ -420,8 +425,8 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             mutableBitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
             out.flush(); out.close()
 
-            // Prepare counts string
-            val fishCountList = resultsToSave.groupBy { it.clsName }.map { "${it.key}: ${it.value.size}" }.toMutableList()
+            // --- CHANGED: List individual fish with confidence for Chips ---
+            val fishCountList = resultsToSave.map { "${it.clsName} ${(it.cnf * 100).toInt()}%" }.toMutableList()
             if (eyesToSave.isNotEmpty()) {
                 fishCountList.add("Eyes: ${eyesToSave.size}")
             }
@@ -475,7 +480,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         lastResults = emptyList()
         activity?.runOnUiThread {
             if (_binding != null) {
-                binding.overlay.setResults(emptyList())
+                binding.overlay.setResults(emptyList(), emptyList())
                 binding.totalCountLabel.text = getString(R.string.total_detected, 0)
                 binding.noDetectionText.visibility = View.VISIBLE
                 binding.detectionList.visibility = View.GONE
@@ -489,21 +494,29 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         activity?.runOnUiThread {
             if (_binding != null) {
                 binding.inferenceTime.text = getString(R.string.inference_time_ms, inferenceTime)
-                binding.overlay.setResults(boundingBoxes)
 
-                val fishCounts = boundingBoxes.groupBy { it.clsName }.map { (name, boxes) ->
-                    val avgConf = boxes.map { it.cnf }.average().toFloat()
-                    DetectionItem(name, boxes.size, avgConf)
-                }.sortedByDescending { it.count }
+                val currentColors = boundingBoxes.mapIndexed { index, _ ->
+                    boxColors[index % boxColors.size]
+                }
+
+                binding.overlay.setResults(boundingBoxes, currentColors)
+
+                val detectionItems = boundingBoxes.mapIndexed { index, box ->
+                    DetectionItem(
+                        fishName = box.clsName,
+                        confidence = box.cnf,
+                        color = currentColors[index]
+                    )
+                }
 
                 binding.totalCountLabel.text = getString(R.string.total_detected, boundingBoxes.size)
-                if (fishCounts.isEmpty()) {
+                if (detectionItems.isEmpty()) {
                     binding.noDetectionText.visibility = View.VISIBLE
                     binding.detectionList.visibility = View.GONE
                 } else {
                     binding.noDetectionText.visibility = View.GONE
                     binding.detectionList.visibility = View.VISIBLE
-                    detectionAdapter.updateDetections(fishCounts)
+                    detectionAdapter.updateDetections(detectionItems)
                 }
             }
         }

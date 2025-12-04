@@ -9,26 +9,13 @@ import android.graphics.RectF
 import androidx.core.content.ContextCompat
 import com.surendramaran.yolov8tflite.ml.BoundingBox
 import com.surendramaran.yolov8tflite.R
+import com.surendramaran.yolov8tflite.data.SpeciesRepository // Import the new repository
 import kotlin.collections.iterator
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
 
 class DrawImages(private val context: Context) {
-
-    data class SpeciesInfo(val a: Double, val b: Double, val ratio: Double)
-
-    private val speciesDB = mapOf(
-        "tuna" to SpeciesInfo(0.0149, 2.95, 0.60),
-        "salmon" to SpeciesInfo(0.0134, 2.98, 0.55),
-        "hilsa" to SpeciesInfo(0.0151, 3.02, 0.40),
-        "pomfret" to SpeciesInfo(0.0210, 2.90, 0.15),
-        "sardine" to SpeciesInfo(0.0075, 3.08, 0.50),
-        "shrimp" to SpeciesInfo(0.0050, 2.80, 0.80),
-        "mud crab" to SpeciesInfo(0.2400, 2.75, 0.30),
-        "3 spotted crab" to SpeciesInfo(0.1800, 2.80, 0.30),
-        "default" to SpeciesInfo(0.0120, 3.00, 0.50)
-    )
 
     private val boxColor = listOf(
         R.color.overlay_orange, R.color.overlay_blue, R.color.overlay_green,
@@ -196,8 +183,8 @@ class DrawImages(private val context: Context) {
         // Math & Details
         val wPx = (right - left)
         val hPx = (bottom - top)
-        val lengthPx = maxOf(wPx, hPx)
-        val widthPx = minOf(wPx, hPx)
+        val lengthPx = max(wPx, hPx)
+        val widthPx = min(wPx, hPx)
 
         val lengthCm = (lengthPx / pixelsPerCm).toDouble()
         val widthCm = (widthPx / pixelsPerCm).toDouble()
@@ -226,13 +213,9 @@ class DrawImages(private val context: Context) {
                 bestName = box.clsName
             }
 
-            var bio = speciesDB["default"]!!
-            for ((key, value) in speciesDB) {
-                if (bestName.contains(key, ignoreCase = true)) {
-                    bio = value
-                    break
-                }
-            }
+            // --- Updated to use the new Repository ---
+            val bio = SpeciesRepository.getSpeciesInfo(bestName)
+            // ----------------------------------------
 
             val weightG = bio.a * lengthCm.pow(bio.b)
             val areaCm2 = lengthCm * widthCm * 0.65

@@ -211,10 +211,8 @@ class FreshnessFragment : Fragment() {
             var bitmap = BitmapFactory.decodeStream(inputStream)
             bitmap = Utils.rotateImageIfRequired(requireContext(), bitmap, uri)
 
-            // --- DECREASE RESOLUTION HERE ---
             // Resize to max 640px dimension to optimize for model inference
             bitmap = Utils.resizeBitmap(bitmap, 640)
-            // --------------------------------
 
             if (isTargetingEyes) {
                 if (detectorEyes == null) return
@@ -256,12 +254,9 @@ class FreshnessFragment : Fragment() {
             val bestBox = boxes.maxByOrNull { it.cnf }
             val singleBoxList = if (bestBox != null) listOf(bestBox) else emptyList()
 
-            // Pass eye results specifically if needed, or generic results
             if (isEyes) {
                 overlay.setEyeResults(singleBoxList)
             } else {
-                // For gills we use the generic/fish box style or add a gill method if distinct style needed
-                // Reusing standard results method for gills or eyes (as per previous patterns)
                 overlay.setResults(singleBoxList)
             }
             overlay.invalidate()
@@ -299,10 +294,12 @@ class FreshnessFragment : Fragment() {
         if (eScore != null && gScore != null) {
             binding.cardFinalVerdict.visibility = View.VISIBLE
 
-            val avg = (eScore + gScore) / 2
-            val percent = (avg * 100).toInt()
+            // --- CHANGED: Weighted average (60% Gills, 40% Eyes) ---
+            val weightedAvg = (gScore * 0.6f) + (eScore * 0.4f)
+            val percent = (weightedAvg * 100).toInt()
+            // -------------------------------------------------------
 
-            if (avg > 0.5) {
+            if (weightedAvg > 0.5) {
                 binding.txtFinalResult.text = getString(R.string.fresh_percentage, percent)
                 binding.txtFinalResult.setTextColor(Color.parseColor("#2E7D32"))
             } else {

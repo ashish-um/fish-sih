@@ -12,23 +12,37 @@ data class SpeciesInfo(
 )
 
 object SpeciesRepository {
-    // Data verified against FishBase and regional fisheries studies (Indo-Pacific)
+    // UPDATED: Scientifically verified constants (cm/g)
     val speciesDB = mapOf(
-        "tuna" to SpeciesInfo(0.0149, 2.95, 0.60),
-        "salmon" to SpeciesInfo(0.0134, 2.98, 0.55),
-        "hilsa" to SpeciesInfo(0.0151, 3.02, 0.40),
-        "pomfret" to SpeciesInfo(0.0210, 2.90, 0.15),
-        "sardine" to SpeciesInfo(0.0075, 3.08, 0.50),
-        "shrimp" to SpeciesInfo(0.0050, 2.80, 0.80),
-        "mud crab" to SpeciesInfo(0.2400, 2.75, 0.30),
-        "3 spotted crab" to SpeciesInfo(0.1800, 2.80, 0.30),
+        // FishBase (Indo-Pacific)
+        "tuna" to SpeciesInfo(0.0145, 3.03, 0.60),
 
-        // Fallback for unknown species (General Fusiform shape)
+        // Standard Salmonid approximation
+        "salmon" to SpeciesInfo(0.0100, 3.05, 0.55),
+
+        // FishBase (Bay of Bengal)
+        "hilsa" to SpeciesInfo(0.0158, 2.92, 0.40),
+
+        // FishBase (Geometric Mean)
+        "pomfret" to SpeciesInfo(0.0324, 3.00, 0.15),
+
+        // FishBase / Oman Sea
+        "sardine" to SpeciesInfo(0.0093, 2.95, 0.50),
+
+        // Penaeus monodon (Pooled)
+        "shrimp" to SpeciesInfo(0.0039, 3.21, 0.80),
+
+        // Scylla serrata (Carapace Width)
+        "mud crab" to SpeciesInfo(0.4300, 2.57, 0.30),
+
+        // Portunus sanguinolentus (Outer Carapace Width)
+        "3 spotted crab" to SpeciesInfo(0.1340, 2.63, 0.30),
+
+        // Fallback (General Fusiform)
         "default" to SpeciesInfo(0.0120, 3.00, 0.50)
     )
 
     fun getSpeciesInfo(speciesName: String): SpeciesInfo {
-        // Case-insensitive lookup
         for ((key, value) in speciesDB) {
             if (speciesName.contains(key, ignoreCase = true)) {
                 return value

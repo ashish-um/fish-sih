@@ -7,7 +7,6 @@
     <string name="predications">Predications</string>
     <string name="interface_time">Interface Time:</string>
     <string name="interface_time_value">%1$sms</string>
-    <!-- TODO: Remove or change this placeholder text -->
     <string name="hello_blank_fragment">Hello blank fragment</string>
     <string name="pre_process_time">Pre Process Time:</string>
     <string name="_0ms">0ms</string>
@@ -201,4 +200,33 @@
     <string name="profile_error_starting_camera">Error starting camera: %1$s</string>
     <string name="profile_edit_photo_title">Edit Photo</string>
     <string name="profile_failed_to_save_image">Failed to save image</string>
+
+    <!-- Analytics Strings -->
+    <string name="analytics">Analytics</string>
+    <string name="total_catch">Total Catch</string>
+    <string name="freshness_rate">Freshness Rate</string>
+    <string name="top_species">Top Species</string>
+    <string name="catch_trend">Catch Trend (Last 7 Days)</string>
+    <string name="species_breakdown">Species Breakdown</string>
+    <string name="fresh_vs_spoil">Fresh vs. Spoiled</string>
+    <string name="no_data_analytics">Not enough data for analytics yet.</string>
+    <string name="catch_count">%1$d</string>
+    <string name="percent_value">%1$d%%</string>
+    <string name="analytics_period">Last 30 Days</string>
+    <string name="dashboard">Dashboard</string>
+    <string name="total_biomass">Est. Biomass</string>
+    <string name="weekly_activity">Weekly Activity</string>
+    <string name="weight_value">%1$.1f kg</string>
+    <string name="freshness_index">Freshness Index</string>
+    <string name="no_activity_data">No activity in last 7 days</string>
+
+    <!-- New Data Strings -->
+    <string name="upload_status">Upload Status</string>
+    <string name="synced">Synced</string>
+    <string name="pending">Pending</string>
+    <string name="size_distribution">Size Distribution</string>
+    <string name="size_small">Small (&lt;0.5kg)</string>
+    <string name="size_medium">Medium (0.5kg-2kg)</string>
+    <string name="size_large">Large (&gt;2kg)</string>
+    <string name="hourly_activity">Hourly Activity (24H)</string>
 </resources>

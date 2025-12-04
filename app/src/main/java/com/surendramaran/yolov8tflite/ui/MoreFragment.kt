@@ -33,7 +33,9 @@ class MoreFragment : Fragment() {
         binding.btnProfile.setOnClickListener {
             findNavController().navigate(R.id.profileFragment)
         }
-
+        binding.root.findViewById<View>(R.id.btn_analytics)?.setOnClickListener {
+            findNavController().navigate(R.id.analyticsFragment)
+        }
         binding.btnHistory.setOnClickListener { findNavController().navigate(R.id.historyFragment) }
         binding.btnMap.setOnClickListener { findNavController().navigate(R.id.mapFragment) }
         binding.btnChat.setOnClickListener { findNavController().navigate(R.id.chatFragment) }

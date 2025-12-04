@@ -6,6 +6,10 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import com.surendramaran.yolov8tflite.R
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
+import java.util.regex.Pattern
 
 data class HistoryItem(
     val id: Int,
@@ -17,7 +21,7 @@ data class HistoryItem(
     val lng: Double,
     val placeName: String,
     val type: Int,
-    val isSynced: Int = 0 // New field
+    val isSynced: Int = 0
 )
 
 class DatabaseHelper(private val context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
@@ -53,7 +57,7 @@ class DatabaseHelper(private val context: Context) : SQLiteOpenHelper(context, D
         values.put(COLUMN_LNG, lng)
         values.put(COLUMN_PLACE_NAME, placeName)
         values.put(COLUMN_TYPE, type)
-        values.put(COLUMN_SYNCED, 0) // Not synced initially
+        values.put(COLUMN_SYNCED, 0)
         return db.insert(TABLE_NAME, null, values)
     }
 
@@ -61,7 +65,6 @@ class DatabaseHelper(private val context: Context) : SQLiteOpenHelper(context, D
         return insertLog(timestamp, imagePath, fishCount, details, lat, lng, placeName, TYPE_DETECTION)
     }
 
-    // Helper to get pending uploads
     fun getUnsyncedLogs(): List<HistoryItem> {
         val list = mutableListOf<HistoryItem>()
         val db = this.readableDatabase
@@ -83,10 +86,168 @@ class DatabaseHelper(private val context: Context) : SQLiteOpenHelper(context, D
         db.update(TABLE_NAME, values, "$COLUMN_ID = ?", arrayOf(id.toString()))
     }
 
-    fun getHistoryByType(type: Int): List<HistoryItem> {
+    fun getTotalBiomass(startTime: Long = 0): Double {
+        val db = this.readableDatabase
+        var totalWeightGrams = 0.0
+
+        val cursor = db.rawQuery("SELECT $COLUMN_DETAILS FROM $TABLE_NAME WHERE $COLUMN_TYPE = $TYPE_VOLUME AND $COLUMN_TIMESTAMP >= $startTime", null)
+        val pattern = Pattern.compile("Est\\. Weight: (\\d+)g")
+
+        if (cursor.moveToFirst()) {
+            do {
+                val details = cursor.getString(0) ?: ""
+                val parts = details.split(";;;")
+                for (part in parts) {
+                    val matcher = pattern.matcher(part)
+                    if (matcher.find()) {
+                        totalWeightGrams += matcher.group(1)?.toDoubleOrNull() ?: 0.0
+                    }
+                }
+            } while (cursor.moveToNext())
+        }
+        cursor.close()
+        return totalWeightGrams / 1000.0
+    }
+
+    // --- NEW: Size Distribution (Small, Medium, Large) ---
+    fun getSizeDistribution(startTime: Long = 0): Triple<Int, Int, Int> {
+        var small = 0
+        var medium = 0
+        var large = 0
+
+        val db = this.readableDatabase
+        val cursor = db.rawQuery("SELECT $COLUMN_DETAILS FROM $TABLE_NAME WHERE $COLUMN_TYPE = $TYPE_VOLUME AND $COLUMN_TIMESTAMP >= $startTime", null)
+        val pattern = Pattern.compile("Est\\. Weight: (\\d+)g")
+
+        if (cursor.moveToFirst()) {
+            do {
+                val details = cursor.getString(0) ?: ""
+                val parts = details.split(";;;")
+                for (part in parts) {
+                    val matcher = pattern.matcher(part)
+                    if (matcher.find()) {
+                        val weight = matcher.group(1)?.toDoubleOrNull() ?: 0.0
+                        when {
+                            weight < 500 -> small++
+                            weight in 500.0..2000.0 -> medium++
+                            else -> large++
+                        }
+                    }
+                }
+            } while (cursor.moveToNext())
+        }
+        cursor.close()
+        return Triple(small, medium, large)
+    }
+
+    // --- NEW: Hourly Activity (0-23) ---
+    fun getHourlyActivity(startTime: Long = 0): Map<Int, Int> {
+        val db = this.readableDatabase
+        val map = mutableMapOf<Int, Int>()
+        // Initialize all hours to 0
+        for (i in 0..23) map[i] = 0
+
+        val cursor = db.rawQuery("SELECT $COLUMN_TIMESTAMP FROM $TABLE_NAME WHERE $COLUMN_TIMESTAMP >= $startTime", null)
+        val calendar = Calendar.getInstance()
+
+        if (cursor.moveToFirst()) {
+            do {
+                val ts = cursor.getLong(0)
+                calendar.timeInMillis = ts
+                val hour = calendar.get(Calendar.HOUR_OF_DAY)
+                map[hour] = map[hour]!! + 1
+            } while (cursor.moveToNext())
+        }
+        cursor.close()
+        return map
+    }
+
+    fun getWeeklyActivity(): Map<String, Int> {
+        val db = this.readableDatabase
+        val activityMap = LinkedHashMap<String, Int>()
+        val calendar = Calendar.getInstance()
+        val dateFormat = SimpleDateFormat("EEE", Locale.getDefault())
+
+        calendar.add(Calendar.DAY_OF_YEAR, -6)
+        for (i in 0..6) {
+            val dayKey = dateFormat.format(calendar.time)
+            activityMap[dayKey] = 0
+            calendar.add(Calendar.DAY_OF_YEAR, 1)
+        }
+
+        val sevenDaysAgo = System.currentTimeMillis() - (7 * 24 * 60 * 60 * 1000)
+        val cursor = db.rawQuery("SELECT $COLUMN_TIMESTAMP, $COLUMN_TITLE FROM $TABLE_NAME WHERE $COLUMN_TYPE = $TYPE_DETECTION AND $COLUMN_TIMESTAMP > ?", arrayOf(sevenDaysAgo.toString()))
+
+        if (cursor.moveToFirst()) {
+            do {
+                val ts = cursor.getLong(0)
+                val title = cursor.getString(1)
+                val dayKey = dateFormat.format(ts)
+
+                var countForEntry = 0
+                val parts = title.split(",")
+                for (part in parts) {
+                    val entry = part.split(":")
+                    if (entry.size == 2) {
+                        countForEntry += entry[1].trim().toIntOrNull() ?: 0
+                    }
+                }
+
+                if (activityMap.containsKey(dayKey)) {
+                    activityMap[dayKey] = activityMap[dayKey]!! + countForEntry
+                }
+            } while (cursor.moveToNext())
+        }
+        cursor.close()
+        return activityMap
+    }
+
+    fun getAnalyticsStats(startTime: Long = 0): AnalyticsStats {
+        val db = this.readableDatabase
+
+        var totalCatch = 0
+        val speciesMap = mutableMapOf<String, Int>()
+
+        val speciesCursor = db.rawQuery("SELECT $COLUMN_TITLE FROM $TABLE_NAME WHERE $COLUMN_TYPE = $TYPE_DETECTION AND $COLUMN_TIMESTAMP >= $startTime", null)
+        if (speciesCursor.moveToFirst()) {
+            do {
+                val title = speciesCursor.getString(0)
+                val parts = title.split(",")
+                for (part in parts) {
+                    val entry = part.split(":")
+                    if (entry.size == 2) {
+                        val name = entry[0].trim()
+                        val count = entry[1].trim().toIntOrNull() ?: 0
+                        speciesMap[name] = speciesMap.getOrDefault(name, 0) + count
+                        totalCatch += count
+                    }
+                }
+            } while (speciesCursor.moveToNext())
+        }
+        speciesCursor.close()
+
+        var freshCount = 0
+        var spoiledCount = 0
+        val freshCursor = db.rawQuery("SELECT $COLUMN_DETAILS FROM $TABLE_NAME WHERE $COLUMN_TYPE = $TYPE_FRESHNESS AND $COLUMN_TIMESTAMP >= $startTime", null)
+        if (freshCursor.moveToFirst()) {
+            do {
+                val details = freshCursor.getString(0)
+                if (details.contains("Status: Fresh", ignoreCase = true) || details.contains("Status: FRESH", ignoreCase = true)) {
+                    freshCount++
+                } else if (details.contains("Not Fresh", ignoreCase = true) || details.contains("NOT FRESH", ignoreCase = true)) {
+                    spoiledCount++
+                }
+            } while (freshCursor.moveToNext())
+        }
+        freshCursor.close()
+
+        return AnalyticsStats(totalCatch, speciesMap, freshCount, spoiledCount)
+    }
+
+    fun getRecentLogs(limit: Int): List<HistoryItem> {
         val list = mutableListOf<HistoryItem>()
         val db = this.readableDatabase
-        val cursor = db.rawQuery("SELECT * FROM $TABLE_NAME WHERE $COLUMN_TYPE = ? ORDER BY $COLUMN_TIMESTAMP DESC", arrayOf(type.toString()))
+        val cursor = db.rawQuery("SELECT * FROM $TABLE_NAME WHERE $COLUMN_TYPE IN ($TYPE_DETECTION, $TYPE_VOLUME) ORDER BY $COLUMN_TIMESTAMP DESC LIMIT $limit", null)
         if (cursor.moveToFirst()) {
             do { list.add(extractItem(cursor)) } while (cursor.moveToNext())
         }
@@ -94,10 +255,32 @@ class DatabaseHelper(private val context: Context) : SQLiteOpenHelper(context, D
         return list
     }
 
-    fun getAllDetections(): List<HistoryItem> {
+    fun getTopLocations(): List<Pair<String, Int>> {
+        val list = mutableListOf<Pair<String, Int>>()
+        val db = this.readableDatabase
+        val cursor = db.rawQuery("SELECT $COLUMN_PLACE_NAME, COUNT(*) as count FROM $TABLE_NAME WHERE $COLUMN_PLACE_NAME != '${context.getString(R.string.unknown)}' GROUP BY $COLUMN_PLACE_NAME ORDER BY count DESC LIMIT 5", null)
+        if (cursor.moveToFirst()) {
+            do {
+                val name = cursor.getString(0)
+                val count = cursor.getInt(1)
+                list.add(Pair(name, count))
+            } while (cursor.moveToNext())
+        }
+        cursor.close()
+        return list
+    }
+
+    data class AnalyticsStats(
+        val totalCatch: Int,
+        val speciesBreakdown: Map<String, Int>,
+        val freshCount: Int,
+        val spoiledCount: Int
+    )
+
+    fun getHistoryByType(type: Int): List<HistoryItem> {
         val list = mutableListOf<HistoryItem>()
         val db = this.readableDatabase
-        val cursor = db.rawQuery("SELECT * FROM $TABLE_NAME ORDER BY $COLUMN_TIMESTAMP DESC", null)
+        val cursor = db.rawQuery("SELECT * FROM $TABLE_NAME WHERE $COLUMN_TYPE = ? ORDER BY $COLUMN_TIMESTAMP DESC", arrayOf(type.toString()))
         if (cursor.moveToFirst()) {
             do { list.add(extractItem(cursor)) } while (cursor.moveToNext())
         }
@@ -123,11 +306,14 @@ class DatabaseHelper(private val context: Context) : SQLiteOpenHelper(context, D
         val typeIndex = cursor.getColumnIndex(COLUMN_TYPE)
         val itemType = if(typeIndex != -1) cursor.getInt(typeIndex) else 0
 
-        return HistoryItem(id, timestamp, imagePath, title, details, lat, lng, placeName, itemType)
+        val syncedIndex = cursor.getColumnIndex(COLUMN_SYNCED)
+        val synced = if(syncedIndex != -1) cursor.getInt(syncedIndex) else 0
+
+        return HistoryItem(id, timestamp, imagePath, title, details, lat, lng, placeName, itemType, synced)
     }
 
     companion object {
-        private const val DATABASE_VERSION = 5 // Version Bump
+        private const val DATABASE_VERSION = 5
         private const val DATABASE_NAME = "FishDetectionDB"
         const val TABLE_NAME = "detections"
         const val COLUMN_ID = "id"

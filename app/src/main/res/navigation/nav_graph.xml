@@ -21,6 +21,12 @@
         android:label="@string/volume" />
 
     <fragment
+        android:id="@+id/analyticsFragment"
+        android:name="com.surendramaran.yolov8tflite.ui.AnalyticsFragment"
+        android:label="@string/analytics"
+        tools:layout="@layout/fragment_analytics" />
+
+    <fragment
         android:id="@+id/moreFragment"
         android:name="com.surendramaran.yolov8tflite.ui.MoreFragment"
         android:label="@string/more" />

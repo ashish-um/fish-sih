@@ -142,7 +142,7 @@ class FreshnessFragment : Fragment() {
         if (lastBitmapEyes == null) {
             Glide.with(this)
                 .asGif()
-                .load(R.drawable.eyes_instruction) // Ensure this file exists in res/drawable
+                .load(R.drawable.eyes_instruction)
                 .into(binding.gifInstructionsEyes)
         }
 
@@ -150,7 +150,7 @@ class FreshnessFragment : Fragment() {
         if (lastBitmapGills == null) {
             Glide.with(this)
                 .asGif()
-                .load(R.drawable.gills_instruction) // Ensure this file exists in res/drawable
+                .load(R.drawable.gills_instruction)
                 .into(binding.gifInstructionsGills)
         }
     }
@@ -222,7 +222,12 @@ class FreshnessFragment : Fragment() {
                 lastBitmapEyes = bitmap
                 binding.imgEyes.setImageBitmap(bitmap)
                 binding.imgEyes.visibility = View.VISIBLE
-                binding.gifInstructionsEyes.visibility = View.GONE // Hide GIF
+                binding.gifInstructionsEyes.visibility = View.GONE
+
+                // --- FIX: Clear previous overlay results immediately ---
+                binding.overlayEyes.clear()
+                // -----------------------------------------------------
+
                 binding.overlayEyes.setImageDimensions(bitmap.width, bitmap.height)
                 binding.pbEyesLoading.visibility = View.VISIBLE
                 cameraExecutor.execute { detectorEyes?.detect(bitmap) }
@@ -231,7 +236,12 @@ class FreshnessFragment : Fragment() {
                 lastBitmapGills = bitmap
                 binding.imgGills.setImageBitmap(bitmap)
                 binding.imgGills.visibility = View.VISIBLE
-                binding.gifInstructionsGills.visibility = View.GONE // Hide GIF
+                binding.gifInstructionsGills.visibility = View.GONE
+
+                // --- FIX: Clear previous overlay results immediately ---
+                binding.overlayGills.clear()
+                // -----------------------------------------------------
+
                 binding.overlayGills.setImageDimensions(bitmap.width, bitmap.height)
                 binding.pbGillsLoading.visibility = View.VISIBLE
                 cameraExecutor.execute { detectorGills?.detect(bitmap) }

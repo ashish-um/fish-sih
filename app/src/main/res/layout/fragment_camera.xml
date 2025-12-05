@@ -81,6 +81,7 @@
         android:includeFontPadding="false"
         android:paddingHorizontal="12dp"
         android:paddingVertical="4dp"
+        android:gravity="center"
         android:textColor="@color/white"
         android:textSize="12sp"
         app:drawableStartCompat="@drawable/ic_settings"

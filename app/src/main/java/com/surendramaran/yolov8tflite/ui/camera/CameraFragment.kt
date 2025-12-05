@@ -47,6 +47,7 @@ import com.surendramaran.yolov8tflite.data.SyncWorker
 import com.surendramaran.yolov8tflite.databinding.FragmentCameraBinding
 import com.surendramaran.yolov8tflite.ml.BoundingBox
 import com.surendramaran.yolov8tflite.ml.Detector
+import com.surendramaran.yolov8tflite.ml.segmentation.utils.Utils
 import com.yalantis.ucrop.UCrop
 import java.io.File
 import java.io.FileOutputStream
@@ -163,6 +164,13 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         bindListeners()
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (!isCameraRunning && binding.imagePreview.visibility == View.GONE) {
+            restartCameraPreview()
+        }
+    }
+
     private fun setupRecyclerView() {
         detectionAdapter = DetectionAdapter()
         binding.detectionList.apply {
@@ -223,6 +231,10 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                         binding.overlay.setImageDimensions(bmp.width, bmp.height)
                         binding.loadingProgress.visibility = View.VISIBLE
 
+                        // --- FIXED: Clear previous results immediately ---
+                        clearDetections()
+                        // -----------------------------------------------
+
                         cameraExecutor.execute {
                             detector?.detect(bmp)
                             detectorEyes?.detect(bmp)
@@ -266,23 +278,47 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             binding.fab.setImageResource(android.R.drawable.ic_media_play)
 
             val inputStream = requireContext().contentResolver.openInputStream(uri)
-            val bitmap = BitmapFactory.decodeStream(inputStream)
-            lastBitmap = bitmap
+            var bitmap = BitmapFactory.decodeStream(inputStream)
 
-            binding.viewFinder.visibility = View.INVISIBLE
-            binding.imagePreview.visibility = View.VISIBLE
-            binding.imagePreview.setImageBitmap(bitmap)
-            binding.overlay.setImageDimensions(bitmap.width, bitmap.height)
-            binding.saveDialog.visibility = View.VISIBLE
-            binding.loadingProgress.visibility = View.VISIBLE
+            if (bitmap != null) {
+                bitmap = Utils.rotateImageIfRequired(requireContext(), bitmap, uri)
+                bitmap = Utils.resizeBitmap(bitmap, 640)
 
-            cameraExecutor.execute {
-                detector?.detect(bitmap)
-                detectorEyes?.detect(bitmap)
+                lastBitmap = bitmap
+
+                binding.viewFinder.visibility = View.INVISIBLE
+                binding.imagePreview.visibility = View.VISIBLE
+                binding.imagePreview.setImageBitmap(bitmap)
+                binding.overlay.setImageDimensions(bitmap.width, bitmap.height)
+                binding.saveDialog.visibility = View.VISIBLE
+                binding.loadingProgress.visibility = View.VISIBLE
+
+                // --- FIXED: Clear previous results immediately ---
+                clearDetections()
+                // -----------------------------------------------
+
+                cameraExecutor.execute {
+                    detector?.detect(bitmap)
+                    detectorEyes?.detect(bitmap)
+                }
+            } else {
+                Toast.makeText(context, "Failed to load image", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) {
             Log.e(TAG, getString(R.string.error_loading_gallery_image), e)
+            Toast.makeText(context, getString(R.string.error_loading_gallery_image), Toast.LENGTH_SHORT).show()
         }
+    }
+
+    // Helper to clear everything from UI and State
+    private fun clearDetections() {
+        lastResults = emptyList()
+        lastEyeResults = emptyList()
+        binding.overlay.clear()
+        detectionAdapter.updateDetections(emptyList())
+        binding.totalCountLabel.text = getString(R.string.total_detected, 0)
+        binding.eyesCountLabel.visibility = View.GONE
+        binding.noDetectionText.visibility = View.GONE
     }
 
     private fun restartCameraPreview() {
@@ -296,6 +332,14 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         binding.fab.setImageResource(R.drawable.ic_camera)
         binding.overlay.setCameraMode()
         binding.overlay.clear()
+
+        // Clear state
+        lastResults = emptyList()
+        lastEyeResults = emptyList()
+        detectionAdapter.updateDetections(emptyList())
+        binding.totalCountLabel.text = getString(R.string.total_detected, 0)
+        binding.noDetectionText.visibility = View.GONE
+
         startCamera()
         isCameraRunning = true
     }
@@ -398,7 +442,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             val textBgPaint = Paint().apply { color = Color.BLACK; style = Paint.Style.FILL }
 
             resultsToSave.forEachIndexed { index, box ->
-                // Apply Cycling Color
                 val color = boxColors[index % boxColors.size]
                 boxPaint.color = color
 
@@ -425,7 +468,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             mutableBitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
             out.flush(); out.close()
 
-            // --- CHANGED: List individual fish with confidence for Chips ---
             val fishCountList = resultsToSave.map { "${it.clsName} ${(it.cnf * 100).toInt()}%" }.toMutableList()
             if (eyesToSave.isNotEmpty()) {
                 fishCountList.add("Eyes: ${eyesToSave.size}")

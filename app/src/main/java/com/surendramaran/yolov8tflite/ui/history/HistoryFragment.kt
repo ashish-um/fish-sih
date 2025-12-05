@@ -5,15 +5,24 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import android.widget.Toast
 import androidx.core.os.bundleOf
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.FragmentNavigatorExtras
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.work.BackoffPolicy
+import androidx.work.Constraints
+import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequest
+import androidx.work.WorkManager
 import com.google.android.material.chip.ChipGroup
 import com.surendramaran.yolov8tflite.R
 import com.surendramaran.yolov8tflite.data.DatabaseHelper
+import com.surendramaran.yolov8tflite.data.SyncWorker
+import java.util.concurrent.TimeUnit
 
 class HistoryFragment : Fragment() {
 
@@ -39,6 +48,18 @@ class HistoryFragment : Fragment() {
 
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
 
+        // --- NEW: Force Sync Logic ---
+        view.findViewById<View>(R.id.btnForceSync).setOnClickListener {
+            val unsynced = dbHelper.getUnsyncedLogs().size
+            if (unsynced > 0) {
+                Toast.makeText(context, "Syncing $unsynced items...", Toast.LENGTH_SHORT).show()
+                triggerBackgroundSync()
+            } else {
+                Toast.makeText(context, "All items are already synced", Toast.LENGTH_SHORT).show()
+            }
+        }
+        // -----------------------------
+
         chipGroup.setOnCheckedChangeListener { _, checkedId ->
             currentType = when (checkedId) {
                 R.id.chipDetection -> DatabaseHelper.TYPE_DETECTION
@@ -51,6 +72,23 @@ class HistoryFragment : Fragment() {
 
         // Initial load
         loadHistory()
+    }
+
+    private fun triggerBackgroundSync() {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val syncRequest = OneTimeWorkRequest.Builder(SyncWorker::class.java)
+            .setConstraints(constraints)
+            .setBackoffCriteria(BackoffPolicy.LINEAR, 10, TimeUnit.SECONDS)
+            .build()
+
+        WorkManager.getInstance(requireContext()).enqueueUniqueWork(
+            "HistoryUploadWork",
+            ExistingWorkPolicy.APPEND, // Use APPEND to queue behind current works
+            syncRequest
+        )
     }
 
     private fun loadHistory() {
@@ -75,7 +113,6 @@ class HistoryFragment : Fragment() {
                     "fishCount" to item.title,
                     "details" to item.details,
                     "placeName" to item.placeName,
-                    // FIX: Convert Double to Float to match NavGraph argument type
                     "lat" to item.lat.toFloat(),
                     "lng" to item.lng.toFloat()
                 )

@@ -7,7 +7,7 @@
 
     <TextView
         android:id="@+id/headerTitle"
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:padding="16dp"
         android:text="@string/saved_history"
@@ -15,7 +15,24 @@
         android:textSize="24sp"
         android:textStyle="bold"
         android:background="@color/white"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/btnForceSync"
         app:layout_constraintTop_toTopOf="parent" />
+
+    <ImageView
+        android:id="@+id/btnForceSync"
+        android:layout_width="wrap_content"
+        android:layout_height="0dp"
+        android:padding="16dp"
+        android:src="@drawable/ic_refresh"
+        app:tint="@color/primary"
+        android:background="@color/white"
+        android:clickable="true"
+        android:focusable="true"
+        android:foreground="?attr/selectableItemBackground"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@id/headerTitle"
+        app:layout_constraintBottom_toBottomOf="@id/headerTitle" />
 
     <HorizontalScrollView
         android:id="@+id/filterScroll"

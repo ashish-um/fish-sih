@@ -11,6 +11,7 @@ import java.util.Calendar
 import java.util.Locale
 import java.util.regex.Pattern
 
+// ... (Keep HistoryItem data class as is) ...
 data class HistoryItem(
     val id: Int,
     val timestamp: Long,
@@ -26,6 +27,7 @@ data class HistoryItem(
 
 class DatabaseHelper(private val context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
 
+    // ... (Keep onCreate, onUpgrade, insertLog, insertDetection, getUnsyncedLogs, markAsSynced, getTotalBiomass, getSizeDistribution, getHourlyActivity methods as is) ...
     override fun onCreate(db: SQLiteDatabase) {
         val createTable = ("CREATE TABLE " + TABLE_NAME + "("
                 + COLUMN_ID + " INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -185,13 +187,30 @@ class DatabaseHelper(private val context: Context) : SQLiteOpenHelper(context, D
                 val dayKey = dateFormat.format(ts)
 
                 var countForEntry = 0
+                // --- FIXED PARSING FOR NEW FORMAT ---
                 val parts = title.split(",")
                 for (part in parts) {
-                    val entry = part.split(":")
-                    if (entry.size == 2) {
-                        countForEntry += entry[1].trim().toIntOrNull() ?: 0
+                    val trimmed = part.trim()
+                    if (trimmed.isEmpty()) continue
+
+                    if (trimmed.contains(":")) {
+                        // Old format: "Rohu: 2" (or "Eyes: 5")
+                        val entry = trimmed.split(":")
+                        if (entry.size == 2) {
+                            val name = entry[0].trim()
+                            if (!name.equals("Eyes", ignoreCase = true)) {
+                                countForEntry += entry[1].trim().toIntOrNull() ?: 0
+                            }
+                        }
+                    } else {
+                        // New format: "Rohu 85%" (One entry = One fish)
+                        // Just ensure it's not "Eyes" or some other meta info if format changes
+                        if (!trimmed.startsWith("Eyes", ignoreCase = true)) {
+                            countForEntry += 1
+                        }
                     }
                 }
+                // ------------------------------------
 
                 if (activityMap.containsKey(dayKey)) {
                     activityMap[dayKey] = activityMap[dayKey]!! + countForEntry
@@ -209,31 +228,54 @@ class DatabaseHelper(private val context: Context) : SQLiteOpenHelper(context, D
         var totalEyes = 0
         val speciesMap = mutableMapOf<String, Int>()
 
-        // Updated query to fetch DETAILS as well
         val speciesCursor = db.rawQuery("SELECT $COLUMN_TITLE, $COLUMN_DETAILS FROM $TABLE_NAME WHERE $COLUMN_TYPE = $TYPE_DETECTION AND $COLUMN_TIMESTAMP >= $startTime", null)
-
-        // Regex for parsing eye count from details (e.g. "Eyes: 5")
         val eyesPattern = Pattern.compile("Eyes: (\\d+)")
 
         if (speciesCursor.moveToFirst()) {
             do {
                 // 1. Parse Fish Count from Title
-                val title = speciesCursor.getString(0)
+                val title = speciesCursor.getString(0) ?: ""
+
+                // --- FIXED PARSING FOR NEW FORMAT ---
                 val parts = title.split(",")
                 for (part in parts) {
-                    val entry = part.split(":")
-                    if (entry.size == 2) {
-                        val name = entry[0].trim()
-                        // Ignore "Eyes" if somehow present in title (unlikely based on current logic, but safe)
-                        if (!name.equals("Eyes", ignoreCase = true)) {
-                            val count = entry[1].trim().toIntOrNull() ?: 0
-                            speciesMap[name] = speciesMap.getOrDefault(name, 0) + count
-                            totalCatch += count
+                    val trimmed = part.trim()
+                    if (trimmed.isEmpty()) continue
+
+                    if (trimmed.contains(":")) {
+                        // Old format handling: "Rohu: 2"
+                        val entry = trimmed.split(":")
+                        if (entry.size == 2) {
+                            val name = entry[0].trim()
+                            if (!name.equals("Eyes", ignoreCase = true)) {
+                                val count = entry[1].trim().toIntOrNull() ?: 0
+                                speciesMap[name] = speciesMap.getOrDefault(name, 0) + count
+                                totalCatch += count
+                            }
+                        }
+                    } else {
+                        // New format handling: "Rohu 85%"
+                        // 1. Remove percentage if present
+                        var name = trimmed
+                        val lastSpaceIndex = trimmed.lastIndexOf(' ')
+                        if (lastSpaceIndex != -1) {
+                            // Check if the part after space is like "85%"
+                            val possibleConf = trimmed.substring(lastSpaceIndex + 1)
+                            if (possibleConf.contains("%")) {
+                                name = trimmed.substring(0, lastSpaceIndex).trim()
+                            }
+                        }
+
+                        // 2. Count as 1
+                        if (!name.startsWith("Eyes", ignoreCase = true)) {
+                            speciesMap[name] = speciesMap.getOrDefault(name, 0) + 1
+                            totalCatch += 1
                         }
                     }
                 }
+                // ------------------------------------
 
-                // 2. Parse Eye Count from Details
+                // 2. Parse Eye Count from Details (remains valid)
                 val details = speciesCursor.getString(1) ?: ""
                 val matcher = eyesPattern.matcher(details)
                 if (matcher.find()) {
@@ -293,7 +335,7 @@ class DatabaseHelper(private val context: Context) : SQLiteOpenHelper(context, D
         val speciesBreakdown: Map<String, Int>,
         val freshCount: Int,
         val spoiledCount: Int,
-        val totalEyes: Int = 0 // Added field
+        val totalEyes: Int = 0
     )
 
     fun getHistoryByType(type: Int): List<HistoryItem> {

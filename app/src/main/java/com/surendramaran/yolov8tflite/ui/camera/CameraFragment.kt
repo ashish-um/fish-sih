@@ -13,7 +13,6 @@ import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Rect
 import android.location.Geocoder
-import android.location.LocationManager
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -65,9 +64,13 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
 import kotlin.math.max
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import androidx.lifecycle.lifecycleScope
 
 class CameraFragment : Fragment(), Detector.DetectorListener {
 
+    // ... (All properties remain the same) ...
     private var _binding: FragmentCameraBinding? = null
     private val binding get() = _binding!!
 
@@ -180,6 +183,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         }
     }
 
+    // ... (onCreateView, onViewCreated, onResume, setupRecyclerView, bindListeners, calculateSpeciesDistribution, calculateBiomass, showPausedState, startCrop, processGalleryImage, clearDetections, restartCameraPreview, startCamera, bindCameraUseCases, cropBitmapToView remain the same as previous correct version) ...
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -277,17 +281,14 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                         binding.overlay.setImageDimensions(bmp.width, bmp.height)
                         binding.loadingProgress.visibility = View.VISIBLE
 
-                        // Clear detections
                         clearDetections()
 
-                        // Run detection
                         cameraExecutor.execute {
                             detector?.detect(bmp)
                             detectorEyes?.detect(bmp)
                         }
                     }
 
-                    // Show save dialog and CALCULATE DISTRIBUTIONS
                     binding.saveDialog.visibility = View.VISIBLE
                     calculateSpeciesDistribution(lastResults)
                     calculateBiomass(lastResults)
@@ -299,7 +300,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         }
     }
 
-    // --- Calculate and Display Species Distribution with Stacked Bar ---
     private fun calculateSpeciesDistribution(boxes: List<BoundingBox>) {
         if (boxes.isEmpty()) {
             binding.tvSpeciesRatioTitle.visibility = View.GONE
@@ -319,7 +319,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             val count = speciesBoxes.size
             val color = speciesColorMap[species] ?: Color.GRAY
 
-            // 1. Add Segment to Stacked Bar
             val segment = View(requireContext())
             val params = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT)
             params.weight = count.toFloat()
@@ -327,7 +326,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             segment.setBackgroundColor(color)
             binding.speciesStackedBar.addView(segment)
 
-            // 2. Add Chip to Legend
             val chip = Chip(requireContext())
             val ratio = (count.toFloat() / totalFish) * 100
             chip.text = "$species: $count (${ratio.toInt()}%)"
@@ -343,15 +341,8 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         binding.speciesLegendGroup.visibility = View.VISIBLE
     }
 
-    // Data class to hold species biomass stats
-    private data class SpeciesBiomass(
-        val name: String,
-        val totalWeight: Double,
-        val totalVolume: Double,
-        val color: Int
-    )
+    private data class SpeciesBiomass(val name: String, val totalWeight: Double, val totalVolume: Double, val color: Int)
 
-    // --- Calculate and Display Biomass (Vertical List Graphic) ---
     private fun calculateBiomass(boxes: List<BoundingBox>) {
         if (boxes.isEmpty()) {
             binding.tvBiomassTitle.visibility = View.GONE
@@ -366,14 +357,11 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         var grandTotalVolume = 0.0
         val speciesStats = mutableListOf<SpeciesBiomass>()
 
-        // 1. Calculate totals
         for ((species, speciesBoxes) in grouped) {
             val count = speciesBoxes.size
             val info = SpeciesRepository.getSpeciesInfo(species)
-
-            // Calculate total for this species
-            val totalSpeciesWeight = count * info.avgWeight // Grams
-            val totalSpeciesVolume = count * info.avgVolume // cm3 (mL)
+            val totalSpeciesWeight = count * info.avgWeight
+            val totalSpeciesVolume = count * info.avgVolume
             val color = speciesColorMap[species] ?: Color.GRAY
 
             grandTotalWeight += totalSpeciesWeight
@@ -382,17 +370,12 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             speciesStats.add(SpeciesBiomass(species, totalSpeciesWeight, totalSpeciesVolume, color))
         }
 
-        // 2. Sort by weight
         val sortedStats = speciesStats.sortedByDescending { it.totalWeight }
-
-        // 3. Update Title with Grand Totals (Converted to kg and Liters)
         val totalKg = grandTotalWeight / 1000.0
         val totalLiters = grandTotalVolume / 1000.0
         binding.tvBiomassTitle.text = "Est. Biomass (Total: ${String.format("%.2f", totalKg)} kg | ${String.format("%.2f", totalLiters)} L)"
 
-        // 4. Build List Items
         for (stat in sortedStats) {
-            // Create Row Layout Programmatically
             val rowLayout = LinearLayout(requireContext()).apply {
                 orientation = LinearLayout.VERTICAL
                 layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
@@ -400,10 +383,8 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                 }
             }
 
-            // Text: Species Name, Weight & Volume
             val weightKg = stat.totalWeight / 1000.0
             val volumeL = stat.totalVolume / 1000.0
-
             val infoText = TextView(requireContext()).apply {
                 text = "${stat.name}: ${String.format("%.1f", weightKg)} kg  |  ${String.format("%.1f", volumeL)} L"
                 textSize = 14f
@@ -414,14 +395,11 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                 }
             }
 
-            // Progress Bar: Visual representation of weight contribution
             val progressIndicator = LinearProgressIndicator(requireContext()).apply {
                 trackCornerRadius = (4 * resources.displayMetrics.density).toInt()
                 trackColor = Color.parseColor("#EEEEEE")
                 setIndicatorColor(stat.color)
                 layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, (8 * resources.displayMetrics.density).toInt())
-
-                // Calculate progress relative to total weight
                 val progressVal = if(grandTotalWeight > 0) ((stat.totalWeight / grandTotalWeight) * 100).toInt() else 0
                 progress = progressVal
             }
@@ -486,7 +464,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                     detector?.detect(bitmap)
                     detectorEyes?.detect(bitmap)
                 }
-
             } else {
                 Toast.makeText(context, "Failed to load image", Toast.LENGTH_SHORT).show()
             }
@@ -610,51 +587,47 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         val bitmapToSave = lastBitmap ?: return
         val resultsToSave = lastResults
         val eyesToSave = lastEyeResults
+        // Use Application Context
+        val appContext = requireContext().applicationContext
 
-        Toast.makeText(context, "Acquiring GPS...", Toast.LENGTH_SHORT).show()
+        Toast.makeText(appContext, "Acquiring GPS...", Toast.LENGTH_SHORT).show()
 
-        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            val fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireContext())
-            val cancellationTokenSource = CancellationTokenSource()
+        if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            val fusedLocationClient = LocationServices.getFusedLocationProviderClient(appContext)
 
-            fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.token)
-                .addOnSuccessListener { location ->
-                    var currentLat = 0.0
-                    var currentLng = 0.0
-                    var placeName = getString(R.string.location_not_available)
-
-                    if (location != null) {
-                        currentLat = location.latitude
-                        currentLng = location.longitude
-                        try {
-                            val geocoder = Geocoder(requireContext(), Locale.getDefault())
-                            @Suppress("DEPRECATION")
-                            val addresses = geocoder.getFromLocation(currentLat, currentLng, 1)
-                            if (!addresses.isNullOrEmpty()) {
-                                placeName = addresses[0].locality ?: addresses[0].getAddressLine(0)
+            // 1. Try Last Known Location (Fastest)
+            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                if (location != null) {
+                    saveDetectionToDb(appContext, bitmapToSave, resultsToSave, eyesToSave, location.latitude, location.longitude, "Lat: ${location.latitude}, Lng: ${location.longitude}")
+                } else {
+                    // 2. If null, request current location
+                    val cancellationTokenSource = CancellationTokenSource()
+                    fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.token)
+                        .addOnSuccessListener { currLoc ->
+                            if (currLoc != null) {
+                                saveDetectionToDb(appContext, bitmapToSave, resultsToSave, eyesToSave, currLoc.latitude, currLoc.longitude, "Lat: ${currLoc.latitude}, Lng: ${currLoc.longitude}")
                             } else {
-                                placeName = getString(R.string.lat_lng_location, currentLat, currentLng)
+                                saveDetectionToDb(appContext, bitmapToSave, resultsToSave, eyesToSave, 0.0, 0.0, getString(R.string.location_not_available))
                             }
-                        } catch (e: Exception) {
-                            placeName = getString(R.string.lat_lng_location, currentLat, currentLng)
                         }
-                    }
-                    saveDetectionToDb(bitmapToSave, resultsToSave, eyesToSave, currentLat, currentLng, placeName)
+                        .addOnFailureListener {
+                            saveDetectionToDb(appContext, bitmapToSave, resultsToSave, eyesToSave, 0.0, 0.0, getString(R.string.location_not_available))
+                        }
                 }
-                .addOnFailureListener {
-                    saveDetectionToDb(bitmapToSave, resultsToSave, eyesToSave, 0.0, 0.0, getString(R.string.location_not_available))
-                }
+            }.addOnFailureListener {
+                saveDetectionToDb(appContext, bitmapToSave, resultsToSave, eyesToSave, 0.0, 0.0, getString(R.string.location_not_available))
+            }
         } else {
-            saveDetectionToDb(bitmapToSave, resultsToSave, eyesToSave, 0.0, 0.0, getString(R.string.location_not_available))
+            saveDetectionToDb(appContext, bitmapToSave, resultsToSave, eyesToSave, 0.0, 0.0, getString(R.string.location_not_available))
         }
     }
 
-    private fun saveDetectionToDb(bitmapToSave: Bitmap, resultsToSave: List<BoundingBox>, eyesToSave: List<BoundingBox>, lat: Double, lng: Double, placeName: String) {
+    private fun saveDetectionToDb(context: Context, bitmapToSave: Bitmap, resultsToSave: List<BoundingBox>, eyesToSave: List<BoundingBox>, lat: Double, lng: Double, placeName: String) {
         try {
             val mutableBitmap = bitmapToSave.copy(Bitmap.Config.ARGB_8888, true)
             val canvas = Canvas(mutableBitmap)
             val boxPaint = Paint().apply { style = Paint.Style.STROKE; strokeWidth = 8f }
-            val eyePaint = Paint().apply { color = ContextCompat.getColor(requireContext(), R.color.overlay_red); style = Paint.Style.STROKE; strokeWidth = 8f }
+            val eyePaint = Paint().apply { color = ContextCompat.getColor(context, R.color.overlay_red); style = Paint.Style.STROKE; strokeWidth = 8f }
             val textPaint = Paint().apply { color = Color.WHITE; textSize = 40f; style = Paint.Style.FILL }
             val textBgPaint = Paint().apply { color = Color.BLACK; style = Paint.Style.FILL }
 
@@ -679,40 +652,58 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             }
 
             val filename = "fish_detect_${System.currentTimeMillis()}.jpg"
-            val file = File(requireContext().filesDir, filename)
+            val file = File(context.filesDir, filename)
             val out = FileOutputStream(file)
             mutableBitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
             out.flush(); out.close()
 
+            // --- FRESHNESS LOGIC ---
+            var freshnessString = ""
+            if (eyesToSave.isNotEmpty()) {
+                val totalEyes = eyesToSave.size
+                val freshCount = eyesToSave.count { box ->
+                    val label = box.clsName.lowercase()
+                    !label.contains("non") && !label.contains("spoil")
+                }
+                val freshRatio = (freshCount.toFloat() / totalEyes) * 100
+                freshnessString = "Freshness: ${freshRatio.toInt()}% ($freshCount/$totalEyes);;;"
+            }
+
             val fishCountList = resultsToSave.map { "${it.clsName} ${(it.cnf * 100).toInt()}%" }.toMutableList()
             if (eyesToSave.isNotEmpty()) fishCountList.add("Eyes: ${eyesToSave.size}")
             val countsString = fishCountList.joinToString(", ")
-            val details = "Total: ${resultsToSave.size}, Eyes: ${eyesToSave.size}, Conf: ${resultsToSave.map { String.format("%.2f", it.cnf) }}"
 
-            dbHelper.insertDetection(
+            val details = "$freshnessString Total: ${resultsToSave.size}, Eyes: ${eyesToSave.size}, Conf: ${resultsToSave.map { String.format("%.2f", it.cnf) }}"
+
+            // DB Helper needs context, use passed context
+            val db = DatabaseHelper(context)
+            db.insertDetection(
                 timestamp = System.currentTimeMillis(),
                 imagePath = file.absolutePath,
-                fishCount = countsString.ifEmpty { getString(R.string.none) },
+                fishCount = countsString.ifEmpty { context.getString(R.string.none) },
                 details = details,
                 lat = lat,
                 lng = lng,
                 placeName = placeName
             )
 
-            Toast.makeText(context, getString(R.string.saved_at_place, placeName), Toast.LENGTH_SHORT).show()
-            triggerBackgroundSync()
+            // UI feedback must be on Main Thread
+            lifecycleScope.launch(Dispatchers.Main) {
+                Toast.makeText(context, "Saved at $placeName", Toast.LENGTH_SHORT).show()
+            }
+            triggerBackgroundSync(context)
         } catch (e: Exception) {
-            Log.e("CameraFragment", getString(R.string.error_saving_detection), e)
-            Toast.makeText(context, getString(R.string.error_saving, e.message), Toast.LENGTH_SHORT).show()
+            e.printStackTrace()
         }
     }
 
-    private fun triggerBackgroundSync() {
+    private fun triggerBackgroundSync(context: Context) {
         val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
         val syncRequest = OneTimeWorkRequest.Builder(SyncWorker::class.java).setConstraints(constraints).setBackoffCriteria(BackoffPolicy.LINEAR, 10, TimeUnit.SECONDS).build()
-        WorkManager.getInstance(requireContext()).enqueueUniqueWork("HistoryUploadWork", ExistingWorkPolicy.APPEND, syncRequest)
+        WorkManager.getInstance(context).enqueueUniqueWork("HistoryUploadWork", ExistingWorkPolicy.APPEND, syncRequest)
     }
 
+    // ... (rest of methods)
     private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all { ContextCompat.checkSelfPermission(requireContext(), it) == PackageManager.PERMISSION_GRANTED }
 
     private val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
@@ -791,7 +782,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                     detectionAdapter.updateDetections(detectionItems)
                 }
 
-                // If camera is paused (captured state), update species ratios
                 if (!isCameraRunning) {
                     calculateSpeciesDistribution(boundingBoxes)
                     calculateBiomass(boundingBoxes)

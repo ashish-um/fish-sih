@@ -10,7 +10,7 @@
     <com.google.android.material.appbar.AppBarLayout
         android:id="@+id/appBar"
         android:layout_width="match_parent"
-        android:layout_height="550dp"
+        android:layout_height="350dp"
         android:background="@color/black"
         android:fitsSystemWindows="true"
         android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar">
@@ -98,39 +98,81 @@
                     android:textStyle="bold" />
             </LinearLayout>
 
-            <com.google.android.material.card.MaterialCardView
+            <TextView
+                android:id="@+id/tvFreshnessSummary"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:text="Freshness: --"
+                android:textColor="#4CAF50"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
+            <com.google.android.material.progressindicator.LinearProgressIndicator
+                android:id="@+id/freshnessProgress"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp"
+                app:trackCornerRadius="4dp"
+                app:indicatorColor="#4CAF50"
+                app:trackColor="#FFEBEE"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/tvSpeciesRatioTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                android:text="Species Ratio"
+                android:textAllCaps="true"
+                android:letterSpacing="0.1"
+                android:textColor="#757575"
+                android:textSize="12sp"
+                android:textStyle="bold"/>
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardSpeciesBar"
+                android:layout_width="match_parent"
+                android:layout_height="24dp"
                 android:layout_marginBottom="16dp"
-                app:cardBackgroundColor="@color/white"
-                app:cardCornerRadius="16dp"
+                app:cardCornerRadius="12dp"
                 app:cardElevation="0dp"
-                app:strokeColor="@color/primary"
-                app:strokeWidth="1dp">
+                app:strokeWidth="0dp"
+                app:cardBackgroundColor="#F0F0F0">
 
                 <LinearLayout
+                    android:id="@+id/speciesStackedBar"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="20dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:letterSpacing="0.15"
-                        android:text="@string/classification"
-                        android:textAllCaps="true"
-                        android:textColor="@color/primary"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-
-                    <com.google.android.material.chip.ChipGroup
-                        android:id="@+id/resultChipGroup"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp" />
-                </LinearLayout>
+                    android:layout_height="match_parent"
+                    android:orientation="horizontal" />
             </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/speciesLegendGroup"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp"
+                app:chipSpacing="8dp"/>
+
+            <TextView
+                android:id="@+id/tvBiomassTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                android:text="Estimated Biomass"
+                android:textAllCaps="true"
+                android:letterSpacing="0.1"
+                android:textColor="#757575"
+                android:textSize="12sp"
+                android:textStyle="bold"/>
+
+            <LinearLayout
+                android:id="@+id/biomassListContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginBottom="24dp"/>
 
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/mapCard"

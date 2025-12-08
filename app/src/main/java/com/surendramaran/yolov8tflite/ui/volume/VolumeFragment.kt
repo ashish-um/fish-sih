@@ -10,7 +10,6 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.location.Geocoder
-import android.location.LocationManager
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -244,7 +243,6 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
         val grayMat = Mat()
         Imgproc.cvtColor(mat, grayMat, Imgproc.COLOR_RGBA2GRAY)
 
-        // Using the list of dictionaries to ensure we catch your specific marker type
         val dicts = listOf(
             Aruco.DICT_4X4_50,
             Aruco.DICT_5X5_50,
@@ -268,14 +266,11 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
                 Aruco.detectMarkers(grayMat, dictionary, corners, ids, parameters)
 
                 if (ids.rows() > 0) {
-                    // Draw the marker outline
                     Scalar(0.0, 255.0, 0.0).let { green ->
                         Aruco.drawDetectedMarkers(rgbMat, corners, ids, green)
                     }
 
-                    // --- UPDATED SIZE HERE ---
                     val markerRealSizeCm = 4.5f
-                    // ------------------------
 
                     val c = corners[0]
                     val xDiff = c.get(0, 0)[0] - c.get(0, 1)[0]
@@ -283,7 +278,6 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
 
                     val widthPx = sqrt(xDiff.pow(2) + yDiff.pow(2)).toFloat()
 
-                    // Scale = Pixels per CM
                     detectedScale = widthPx / markerRealSizeCm
                     markerFound = true
                     break
@@ -435,9 +429,10 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
 
         val paths = mutableListOf<String>()
         try {
+            val context = requireContext()
             bitmapsToSave.forEachIndexed { index, bitmap ->
                 val filename = "vol_${System.currentTimeMillis()}_$index.jpg"
-                val file = File(requireContext().filesDir, filename)
+                val file = File(context.filesDir, filename)
                 val out = FileOutputStream(file)
                 bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
                 out.flush()
@@ -456,47 +451,58 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
     }
 
     private fun saveToDb(imagePath: String, title: String, details: String) {
-        Toast.makeText(context, "Acquiring GPS...", Toast.LENGTH_SHORT).show()
+        // Use Application Context to prevent crash if fragment is detached
+        val appContext = requireContext().applicationContext
+
+        Toast.makeText(appContext, "Acquiring GPS...", Toast.LENGTH_SHORT).show()
 
         fun performInsert(lat: Double, lng: Double, placeName: String) {
             try {
-                dbHelper.insertLog(System.currentTimeMillis(), imagePath, title, details, lat, lng, placeName, DatabaseHelper.TYPE_VOLUME)
-                toast(getString(R.string.volume_log_saved))
-                triggerBackgroundSync()
+                // DB Helper needs context, use appContext
+                val db = DatabaseHelper(appContext)
+                db.insertLog(System.currentTimeMillis(), imagePath, title, details, lat, lng, placeName, DatabaseHelper.TYPE_VOLUME)
+
+                // Show success on Main Thread
+                lifecycleScope.launch(Dispatchers.Main) {
+                    Toast.makeText(appContext, "Volume Log Saved!", Toast.LENGTH_SHORT).show()
+                }
+                triggerBackgroundSync(appContext)
             } catch (e: Exception) {
-                toast(getString(R.string.error_saving, e.message))
+                e.printStackTrace()
             }
         }
 
-        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            val fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireContext())
-            val cancellationTokenSource = CancellationTokenSource()
+        if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            val fusedLocationClient = LocationServices.getFusedLocationProviderClient(appContext)
 
-            fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.token)
-                .addOnSuccessListener { location ->
-                    if (location != null) {
-                        var placeName = getString(R.string.location_not_available)
-                        try {
-                            val geocoder = Geocoder(requireContext(), Locale.getDefault())
-                            @Suppress("DEPRECATION")
-                            val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
-                            if (!addresses.isNullOrEmpty()) {
-                                placeName = addresses[0].locality ?: addresses[0].getAddressLine(0)
+            // 1. Try Last Known Location (Fastest)
+            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                if (location != null) {
+                    performInsert(location.latitude, location.longitude, "Lat: ${location.latitude}, Lng: ${location.longitude}")
+                } else {
+                    // 2. If null, request current location
+                    val cancellationTokenSource = CancellationTokenSource()
+                    fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.token)
+                        .addOnSuccessListener { currLoc ->
+                            if (currLoc != null) {
+                                performInsert(currLoc.latitude, currLoc.longitude, "Lat: ${currLoc.latitude}, Lng: ${currLoc.longitude}")
+                            } else {
+                                performInsert(0.0, 0.0, "Location Unavailable")
                             }
-                        } catch (e: Exception) {}
-                        performInsert(location.latitude, location.longitude, placeName)
-                    } else {
-                        performInsert(0.0, 0.0, getString(R.string.location_not_available))
-                    }
+                        }
+                        .addOnFailureListener {
+                            performInsert(0.0, 0.0, "Location Unavailable")
+                        }
                 }
-                .addOnFailureListener {
-                    performInsert(0.0, 0.0, getString(R.string.location_not_available))
-                }
+            }.addOnFailureListener {
+                performInsert(0.0, 0.0, "Location Unavailable")
+            }
         } else {
-            performInsert(0.0, 0.0, getString(R.string.location_not_available))
+            performInsert(0.0, 0.0, "Location Unavailable")
         }
     }
-    private fun triggerBackgroundSync() {
+
+    private fun triggerBackgroundSync(context: Context) {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
@@ -504,7 +510,7 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
             .setConstraints(constraints)
             .setBackoffCriteria(BackoffPolicy.LINEAR, 10, TimeUnit.SECONDS)
             .build()
-        WorkManager.getInstance(requireContext()).enqueueUniqueWork(
+        WorkManager.getInstance(context).enqueueUniqueWork(
             "HistoryUploadWork",
             ExistingWorkPolicy.APPEND,
             syncRequest
@@ -517,7 +523,6 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
         dialog.setContentView(dialogBinding.root)
         dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
 
-        // Ensure dialog is wide enough
         val width = (resources.displayMetrics.widthPixels * 0.90).toInt()
         dialog.window?.setLayout(width, ViewGroup.LayoutParams.WRAP_CONTENT)
 
@@ -555,6 +560,7 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
     }
 
     private fun toast(message: String) {
+        if (!isAdded) return
         lifecycleScope.launch(Dispatchers.Main) {
             Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
         }

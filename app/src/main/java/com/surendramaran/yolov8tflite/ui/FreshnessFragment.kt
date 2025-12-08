@@ -10,7 +10,6 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.location.Geocoder
-import android.location.LocationManager
 import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -22,6 +21,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
@@ -44,6 +44,9 @@ import com.surendramaran.yolov8tflite.ml.segmentation.utils.Utils
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+
 class FreshnessFragment : Fragment() {
 
     private var _binding: FragmentFreshnessBinding? = null
@@ -53,7 +56,6 @@ class FreshnessFragment : Fragment() {
     private lateinit var dbHelper: DatabaseHelper
     private lateinit var cameraExecutor: ExecutorService
 
-    // State Tracking
     private var isTargetingEyes = true
     private var tempImageUri: Uri? = null
 
@@ -176,10 +178,18 @@ class FreshnessFragment : Fragment() {
     }
 
     private fun checkPermissionAndLaunchCamera() {
-        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-            launchCamera()
+        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                launchCamera()
+            } else {
+                requestPermissionLauncher.launch(Manifest.permission.CAMERA)
+            }
         } else {
-            requestPermissionLauncher.launch(Manifest.permission.CAMERA)
+            if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                launchCamera()
+            } else {
+                requestPermissionLauncher.launch(Manifest.permission.CAMERA)
+            }
         }
     }
 
@@ -212,8 +222,6 @@ class FreshnessFragment : Fragment() {
             val inputStream = requireContext().contentResolver.openInputStream(uri)
             var bitmap = BitmapFactory.decodeStream(inputStream)
             bitmap = Utils.rotateImageIfRequired(requireContext(), bitmap, uri)
-
-            // Resize to max 640px dimension to optimize for model inference
             bitmap = Utils.resizeBitmap(bitmap, 640)
 
             if (isTargetingEyes) {
@@ -295,11 +303,8 @@ class FreshnessFragment : Fragment() {
 
         if (eScore != null && gScore != null) {
             binding.cardFinalVerdict.visibility = View.VISIBLE
-
-            // --- CHANGED: Weighted average (60% Gills, 40% Eyes) ---
             val weightedAvg = (gScore * 0.6f) + (eScore * 0.4f)
             val percent = (weightedAvg * 100).toInt()
-            // -------------------------------------------------------
 
             if (weightedAvg > 0.5) {
                 binding.txtFinalResult.text = getString(R.string.fresh_percentage, percent)
@@ -312,34 +317,34 @@ class FreshnessFragment : Fragment() {
     }
 
     private fun saveFreshnessLog() {
-        // 1. Prepare Images (Same as before)
+        val appContext = requireContext().applicationContext // Capture application context
+
         val paths = mutableListOf<String>()
         val descriptions = mutableListOf<String>()
         val bitmapsWithBoxes = mutableListOf<Bitmap>()
 
         lastBitmapEyes?.let { bmp ->
-            val drawnBmp = drawBoundingBoxes(bmp, lastEyesBoxes)
+            val drawnBmp = drawBoundingBoxes(appContext, bmp, lastEyesBoxes)
             bitmapsWithBoxes.add(drawnBmp)
             val score = eyesScore
-            val status = if (score != null) { if (score > 0.5) getString(R.string.fresh) else getString(R.string.not_fresh) } else getString(R.string.not_analyzed)
-            descriptions.add(getString(R.string.part_eyes, status))
+            val status = if (score != null) { if (score > 0.5) "Fresh" else "Not Fresh" } else "Not Analyzed"
+            descriptions.add("Part: EYES\nStatus: $status")
         }
 
         lastBitmapGills?.let { bmp ->
-            val drawnBmp = drawBoundingBoxes(bmp, lastGillsBoxes)
+            val drawnBmp = drawBoundingBoxes(appContext, bmp, lastGillsBoxes)
             bitmapsWithBoxes.add(drawnBmp)
             val score = gillsScore
-            val status = if (score != null) { if (score > 0.5) getString(R.string.fresh) else getString(R.string.not_fresh) } else getString(R.string.not_analyzed)
-            descriptions.add(getString(R.string.part_gills, status))
+            val status = if (score != null) { if (score > 0.5) "Fresh" else "Not Fresh" } else "Not Analyzed"
+            descriptions.add("Part: GILLS\nStatus: $status")
         }
 
         if (bitmapsWithBoxes.isEmpty()) return
 
         try {
-            // 2. Save Files Locally (Same as before)
             bitmapsWithBoxes.forEachIndexed { index, bitmap ->
                 val filename = "fresh_${System.currentTimeMillis()}_$index.jpg"
-                val file = File(requireContext().filesDir, filename)
+                val file = File(appContext.filesDir, filename)
                 val out = FileOutputStream(file)
                 bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
                 out.flush()
@@ -350,55 +355,64 @@ class FreshnessFragment : Fragment() {
             val combinedDetails = descriptions.joinToString(";;;")
             val title = binding.txtFinalResult.text.toString()
 
-            // 3. NEW LOCATION LOGIC STARTS HERE
-            Toast.makeText(context, "Acquiring GPS...", Toast.LENGTH_SHORT).show()
+            Toast.makeText(appContext, "Acquiring GPS...", Toast.LENGTH_SHORT).show()
 
             fun performInsert(lat: Double, lng: Double, placeName: String) {
-                dbHelper.insertLog(System.currentTimeMillis(), combinedPaths, title, combinedDetails, lat, lng, placeName, DatabaseHelper.TYPE_FRESHNESS)
-                Toast.makeText(context, getString(R.string.saved), Toast.LENGTH_SHORT).show()
+                try {
+                    val db = DatabaseHelper(appContext)
+                    db.insertLog(System.currentTimeMillis(), combinedPaths, title, combinedDetails, lat, lng, placeName, DatabaseHelper.TYPE_FRESHNESS)
 
-                val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
-                val syncRequest = OneTimeWorkRequest.Builder(SyncWorker::class.java).setConstraints(constraints).build()
-                WorkManager.getInstance(requireContext()).enqueueUniqueWork("HistoryUploadWork", ExistingWorkPolicy.APPEND, syncRequest)
+                    lifecycleScope.launch(Dispatchers.Main) {
+                        Toast.makeText(appContext, "Saved!", Toast.LENGTH_SHORT).show()
+                    }
+                    triggerBackgroundSync(appContext)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
             }
 
-            if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                val fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireContext())
-                val cancellationTokenSource = CancellationTokenSource()
+            if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                val fusedLocationClient = LocationServices.getFusedLocationProviderClient(appContext)
 
-                fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.token)
-                    .addOnSuccessListener { location ->
-                        if (location != null) {
-                            var placeName = getString(R.string.location_not_available)
-                            try {
-                                val geocoder = Geocoder(requireContext(), Locale.getDefault())
-                                @Suppress("DEPRECATION")
-                                val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
-                                if (!addresses.isNullOrEmpty()) {
-                                    placeName = addresses[0].locality ?: addresses[0].getAddressLine(0)
+                fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                    if (location != null) {
+                        performInsert(location.latitude, location.longitude, "Lat: ${location.latitude}, Lng: ${location.longitude}")
+                    } else {
+                        val cancellationTokenSource = CancellationTokenSource()
+                        fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.token)
+                            .addOnSuccessListener { currLoc ->
+                                if (currLoc != null) {
+                                    performInsert(currLoc.latitude, currLoc.longitude, "Lat: ${currLoc.latitude}, Lng: ${currLoc.longitude}")
+                                } else {
+                                    performInsert(0.0, 0.0, "Location Unavailable")
                                 }
-                            } catch (e: Exception) {}
-                            performInsert(location.latitude, location.longitude, placeName)
-                        } else {
-                            performInsert(0.0, 0.0, getString(R.string.location_not_available))
-                        }
+                            }
+                            .addOnFailureListener {
+                                performInsert(0.0, 0.0, "Location Unavailable")
+                            }
                     }
-                    .addOnFailureListener {
-                        performInsert(0.0, 0.0, getString(R.string.location_not_available))
-                    }
+                }.addOnFailureListener {
+                    performInsert(0.0, 0.0, "Location Unavailable")
+                }
             } else {
-                performInsert(0.0, 0.0, getString(R.string.location_not_available))
+                performInsert(0.0, 0.0, "Location Unavailable")
             }
 
         } catch (e: Exception) {
-            Toast.makeText(context, getString(R.string.error_saving, e.message), Toast.LENGTH_SHORT).show()
+            e.printStackTrace()
         }
     }
 
-    private fun drawBoundingBoxes(bitmap: Bitmap, boxes: List<BoundingBox>): Bitmap {
+    private fun triggerBackgroundSync(context: Context) {
+        val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+        val syncRequest = OneTimeWorkRequest.Builder(SyncWorker::class.java).setConstraints(constraints).build()
+        WorkManager.getInstance(context).enqueueUniqueWork("HistoryUploadWork", ExistingWorkPolicy.APPEND, syncRequest)
+    }
+
+    private fun drawBoundingBoxes(context: Context, bitmap: Bitmap, boxes: List<BoundingBox>): Bitmap {
         val mutableBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
         val canvas = Canvas(mutableBitmap)
-        val boxPaint = Paint().apply { color = ContextCompat.getColor(requireContext(), R.color.bounding_box_color); style = Paint.Style.STROKE; strokeWidth = 8f }
+        val boxPaint = Paint().apply { color = ContextCompat.getColor(context, R.color.bounding_box_color); style = Paint.Style.STROKE; strokeWidth = 8f }
         val textPaint = Paint().apply { color = Color.WHITE; textSize = 40f; style = Paint.Style.FILL }
         boxes.forEach { box ->
             val left = box.x1 * mutableBitmap.width; val top = box.y1 * mutableBitmap.height; val right = box.x2 * mutableBitmap.width; val bottom = box.y2 * mutableBitmap.height

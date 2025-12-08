@@ -10,6 +10,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.location.Geocoder
+import android.location.Location
 import android.location.LocationManager
 import android.net.Uri
 import android.os.Bundle
@@ -97,6 +98,9 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
 
     private var originalBitmap: Bitmap? = null
 
+    // Captured location store
+    private var capturedLocation: Location? = null
+
     private val cropImage = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
             val resultUri = UCrop.getOutput(result.data!!)
@@ -122,6 +126,10 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
                     isMarkerDetected = found
                     detector?.detect(markedBitmap)
                 }
+
+                // Start Pre-fetch
+                capturedLocation = null
+                prefetchLocation()
             }
         } else if (result.resultCode == UCrop.RESULT_ERROR) {
             val error = UCrop.getError(result.data!!)
@@ -404,6 +412,23 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
         }
     }
 
+    // --- Pre-fetch Location ---
+    private fun prefetchLocation() {
+        val appContext = context?.applicationContext ?: return
+
+        if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            try {
+                val fusedLocationClient = LocationServices.getFusedLocationProviderClient(appContext)
+                fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
+                    .addOnSuccessListener { location ->
+                        capturedLocation = location
+                    }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
     private fun saveVolumeLog() {
         val bitmapsToSave = if (!lastAnalysisResult.isNullOrEmpty()) {
             lastAnalysisResult!!.map { result ->
@@ -429,11 +454,12 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
         }
 
         val paths = mutableListOf<String>()
+        val appContext = requireContext().applicationContext
+
         try {
-            val context = requireContext()
             bitmapsToSave.forEachIndexed { index, bitmap ->
                 val filename = "vol_${System.currentTimeMillis()}_$index.jpg"
-                val file = File(context.filesDir, filename)
+                val file = File(appContext.filesDir, filename)
                 val out = FileOutputStream(file)
                 bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
                 out.flush()
@@ -445,64 +471,65 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
             val combinedDetails = descriptions.joinToString(";;;")
             val title = if (isMarkerDetected) getString(R.string.volume_accurate) else getString(R.string.volume_estimated)
 
-            saveToDb(combinedPaths, title, combinedDetails)
+            // Check Pre-fetched
+            if (capturedLocation != null) {
+                performInsert(appContext, combinedPaths, title, combinedDetails, capturedLocation!!.latitude, capturedLocation!!.longitude, "Lat: ${capturedLocation!!.latitude}, Lng: ${capturedLocation!!.longitude}")
+                return
+            }
+
+            Toast.makeText(appContext, "Acquiring GPS...", Toast.LENGTH_SHORT).show()
+
+            if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                val fusedLocationClient = LocationServices.getFusedLocationProviderClient(appContext)
+                val cancellationTokenSource = CancellationTokenSource()
+
+                // ... inside saveVolumeLog ...
+                fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.token)
+                    .addOnSuccessListener { location ->
+                        if (location != null) {
+                            // FIX: Use appContext.getString
+                            var placeName = appContext.getString(R.string.location_not_available)
+                            try {
+                                val geocoder = Geocoder(appContext, Locale.getDefault())
+                                @Suppress("DEPRECATION")
+                                val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
+                                if (!addresses.isNullOrEmpty()) {
+                                    placeName = addresses[0].locality ?: addresses[0].getAddressLine(0)
+                                } else {
+                                    placeName = "Lat: ${location.latitude}, Lng: ${location.longitude}"
+                                }
+                            } catch (e: Exception) {
+                                placeName = "Lat: ${location.latitude}, Lng: ${location.longitude}"
+                            }
+                            performInsert(appContext, combinedPaths, title, combinedDetails, location.latitude, location.longitude, placeName)
+                        } else {
+                            // FIX: Use appContext.getString
+                            performInsert(appContext, combinedPaths, title, combinedDetails, 0.0, 0.0, appContext.getString(R.string.location_not_available))
+                        }
+                    }
+                    .addOnFailureListener {
+                        // FIX: Use appContext.getString
+                        performInsert(appContext, combinedPaths, title, combinedDetails, 0.0, 0.0, appContext.getString(R.string.location_not_available))
+                    }
+            } else {
+                performInsert(appContext, combinedPaths, title, combinedDetails, 0.0, 0.0, getString(R.string.location_not_available))
+            }
+
         } catch (e: Exception) {
-            toast(getString(R.string.save_failed, e.message))
+            e.printStackTrace()
         }
     }
 
-    private fun saveToDb(imagePath: String, title: String, details: String) {
-        // Use Application Context to prevent crash if fragment is detached
-        val appContext = requireContext().applicationContext
-
-        Toast.makeText(appContext, "Acquiring GPS...", Toast.LENGTH_SHORT).show()
-
-        fun performInsert(lat: Double, lng: Double, placeName: String) {
-            try {
-                // DB Helper needs context, use appContext
-                val db = DatabaseHelper(appContext)
-                db.insertLog(System.currentTimeMillis(), imagePath, title, details, lat, lng, placeName, DatabaseHelper.TYPE_VOLUME)
-
-                // Show success on Main Thread
-                lifecycleScope.launch(Dispatchers.Main) {
-                    Toast.makeText(appContext, "Volume Log Saved!", Toast.LENGTH_SHORT).show()
-                }
-                triggerBackgroundSync(appContext)
-            } catch (e: Exception) {
-                e.printStackTrace()
+    private fun performInsert(context: Context, imagePath: String, title: String, details: String, lat: Double, lng: Double, placeName: String) {
+        try {
+            val db = DatabaseHelper(context)
+            db.insertLog(System.currentTimeMillis(), imagePath, title, details, lat, lng, placeName, DatabaseHelper.TYPE_VOLUME)
+            lifecycleScope.launch(Dispatchers.Main) {
+                Toast.makeText(context, context.getString(R.string.volume_log_saved), Toast.LENGTH_SHORT).show()
             }
-        }
-
-        if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            val fusedLocationClient = LocationServices.getFusedLocationProviderClient(appContext)
-
-            val cancellationTokenSource = CancellationTokenSource()
-            fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.token)
-                .addOnSuccessListener { location ->
-                    if (location != null) {
-                        var placeName = getString(R.string.location_not_available)
-                        try {
-                            val geocoder = Geocoder(appContext, Locale.getDefault())
-                            @Suppress("DEPRECATION")
-                            val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
-                            if (!addresses.isNullOrEmpty()) {
-                                placeName = addresses[0].locality ?: addresses[0].getAddressLine(0)
-                            } else {
-                                placeName = "Lat: ${location.latitude}, Lng: ${location.longitude}"
-                            }
-                        } catch (e: Exception) {
-                            placeName = "Lat: ${location.latitude}, Lng: ${location.longitude}"
-                        }
-                        performInsert(location.latitude, location.longitude, placeName)
-                    } else {
-                        performInsert(0.0, 0.0, "Location Unavailable")
-                    }
-                }
-                .addOnFailureListener {
-                    performInsert(0.0, 0.0, "Location Unavailable")
-                }
-        } else {
-            performInsert(0.0, 0.0, "Location Unavailable")
+            triggerBackgroundSync(context)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 

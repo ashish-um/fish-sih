@@ -13,6 +13,7 @@ import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Rect
 import android.location.Geocoder
+import android.location.Location
 import android.location.LocationManager
 import android.net.Uri
 import android.os.Bundle
@@ -94,6 +95,9 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
     private var lastEyeResults: List<BoundingBox> = emptyList()
 
     private var currentZoomRatio = 1.0f
+
+    // Variable to store pre-fetched location
+    private var capturedLocation: Location? = null
 
     private val boxColors = listOf(
         Color.parseColor("#FF5722"), Color.parseColor("#2979FF"), Color.parseColor("#00C853"),
@@ -261,9 +265,15 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                 if (binding.imagePreview.visibility == View.VISIBLE) {
                     restartCameraPreview()
                 } else if (isCameraRunning) {
+                    // CAPTURE BUTTON PRESSED
                     isCameraRunning = false
                     cameraProvider?.unbindAll()
                     fab.setImageResource(android.R.drawable.ic_media_play)
+
+                    // --- START LOCATION PRE-FETCH ---
+                    capturedLocation = null
+                    prefetchLocation()
+                    // --------------------------------
 
                     lastBitmap?.let { bmp ->
                         binding.imagePreview.setImageBitmap(bmp)
@@ -287,6 +297,23 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                 } else {
                     restartCameraPreview()
                 }
+            }
+        }
+    }
+
+    // --- NEW: Pre-fetch Location ---
+    private fun prefetchLocation() {
+        val appContext = context?.applicationContext ?: return
+
+        if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            try {
+                val fusedLocationClient = LocationServices.getFusedLocationProviderClient(appContext)
+                fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
+                    .addOnSuccessListener { location ->
+                        capturedLocation = location
+                    }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }
@@ -449,6 +476,10 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                 binding.saveDialog.visibility = View.VISIBLE
                 binding.loadingProgress.visibility = View.VISIBLE
 
+                // START PRE-FETCH FOR GALLERY TOO
+                capturedLocation = null
+                prefetchLocation()
+
                 clearDetections()
 
                 cameraExecutor.execute {
@@ -578,20 +609,30 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         val bitmapToSave = lastBitmap ?: return
         val resultsToSave = lastResults
         val eyesToSave = lastEyeResults
-        // Use Application Context to safely run in background/async
+
         val appContext = requireContext().applicationContext
 
+        // Check if pre-fetched location is available
+        if (capturedLocation != null) {
+            saveDetectionToDb(appContext, bitmapToSave, resultsToSave, eyesToSave, capturedLocation!!.latitude, capturedLocation!!.longitude, "Lat: ${capturedLocation!!.latitude}, Lng: ${capturedLocation!!.longitude}")
+            return
+        }
+
+        // Fallback to normal fetch
         Toast.makeText(appContext, "Acquiring GPS...", Toast.LENGTH_SHORT).show()
 
         if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             val fusedLocationClient = LocationServices.getFusedLocationProviderClient(appContext)
-
             val cancellationTokenSource = CancellationTokenSource()
+
+            // ... inside saveCurrentDetection ...
+            // ... inside saveCurrentDetection ...
             fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.token)
                 .addOnSuccessListener { location ->
                     var currentLat = 0.0
                     var currentLng = 0.0
-                    var placeName = getString(R.string.location_not_available)
+                    // FIX: Use appContext.getString
+                    var placeName = appContext.getString(R.string.location_not_available)
 
                     if (location != null) {
                         currentLat = location.latitude
@@ -603,19 +644,22 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                             if (!addresses.isNullOrEmpty()) {
                                 placeName = addresses[0].locality ?: addresses[0].getAddressLine(0)
                             } else {
-                                placeName = "Lat: $currentLat, Lng: $currentLng"
+                                // FIX: Use appContext.getString
+                                placeName = appContext.getString(R.string.lat_lng_location, currentLat, currentLng)
                             }
                         } catch (e: Exception) {
-                            placeName = "Lat: $currentLat, Lng: $currentLng"
+                            // FIX: Use appContext.getString
+                            placeName = appContext.getString(R.string.lat_lng_location, currentLat, currentLng)
                         }
                     }
                     saveDetectionToDb(appContext, bitmapToSave, resultsToSave, eyesToSave, currentLat, currentLng, placeName)
                 }
                 .addOnFailureListener {
-                    saveDetectionToDb(appContext, bitmapToSave, resultsToSave, eyesToSave, 0.0, 0.0, "Location Unavailable")
+                    // FIX: Use appContext.getString
+                    saveDetectionToDb(appContext, bitmapToSave, resultsToSave, eyesToSave, 0.0, 0.0, appContext.getString(R.string.location_not_available))
                 }
         } else {
-            saveDetectionToDb(appContext, bitmapToSave, resultsToSave, eyesToSave, 0.0, 0.0, "Location Unavailable")
+            saveDetectionToDb(appContext, bitmapToSave, resultsToSave, eyesToSave, 0.0, 0.0, getString(R.string.location_not_available))
         }
     }
 
@@ -654,7 +698,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             mutableBitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
             out.flush(); out.close()
 
-            // --- FRESHNESS LOGIC ---
             var freshnessString = ""
             if (eyesToSave.isNotEmpty()) {
                 val totalEyes = eyesToSave.size
@@ -672,7 +715,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
 
             val details = "$freshnessString Total: ${resultsToSave.size}, Eyes: ${eyesToSave.size}, Conf: ${resultsToSave.map { String.format("%.2f", it.cnf) }}"
 
-            // DB Helper needs context, use passed context
             val db = DatabaseHelper(context)
             db.insertDetection(
                 timestamp = System.currentTimeMillis(),
@@ -684,7 +726,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                 placeName = placeName
             )
 
-            // UI feedback must be on Main Thread
             lifecycleScope.launch(Dispatchers.Main) {
                 Toast.makeText(context, "Saved at $placeName", Toast.LENGTH_SHORT).show()
             }
@@ -700,7 +741,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         WorkManager.getInstance(context).enqueueUniqueWork("HistoryUploadWork", ExistingWorkPolicy.APPEND, syncRequest)
     }
 
-    // ... (rest of methods)
     private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all { ContextCompat.checkSelfPermission(requireContext(), it) == PackageManager.PERMISSION_GRANTED }
 
     private val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->

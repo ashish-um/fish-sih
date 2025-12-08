@@ -10,6 +10,8 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.location.Geocoder
+import android.location.Location
+import android.location.LocationManager
 import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -65,6 +67,9 @@ class FreshnessFragment : Fragment() {
     private var lastGillsBoxes: List<BoundingBox> = emptyList()
     private var eyesScore: Float? = null
     private var gillsScore: Float? = null
+
+    // Captured location store
+    private var capturedLocation: Location? = null
 
     private val galleryLauncher = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         uri?.let { startCrop(it) }
@@ -247,8 +252,30 @@ class FreshnessFragment : Fragment() {
                 binding.pbGillsLoading.visibility = View.VISIBLE
                 cameraExecutor.execute { detectorGills?.detect(bitmap) }
             }
+
+            // Start Pre-fetch
+            capturedLocation = null
+            prefetchLocation()
+
         } catch (e: Exception) {
             Toast.makeText(context, getString(R.string.error_loading_gallery_image), Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // --- Pre-fetch Location ---
+    private fun prefetchLocation() {
+        val appContext = context?.applicationContext ?: return
+
+        if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            try {
+                val fusedLocationClient = LocationServices.getFusedLocationProviderClient(appContext)
+                fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
+                    .addOnSuccessListener { location ->
+                        capturedLocation = location
+                    }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 
@@ -317,8 +344,7 @@ class FreshnessFragment : Fragment() {
     }
 
     private fun saveFreshnessLog() {
-        // Use Application Context
-        val appContext = requireContext().applicationContext
+        val appContext = requireContext().applicationContext // Use App Context
 
         val paths = mutableListOf<String>()
         val descriptions = mutableListOf<String>()
@@ -356,30 +382,26 @@ class FreshnessFragment : Fragment() {
             val combinedDetails = descriptions.joinToString(";;;")
             val title = binding.txtFinalResult.text.toString()
 
-            Toast.makeText(appContext, "Acquiring GPS...", Toast.LENGTH_SHORT).show()
-
-            fun performInsert(lat: Double, lng: Double, placeName: String) {
-                try {
-                    val db = DatabaseHelper(appContext)
-                    db.insertLog(System.currentTimeMillis(), combinedPaths, title, combinedDetails, lat, lng, placeName, DatabaseHelper.TYPE_FRESHNESS)
-
-                    lifecycleScope.launch(Dispatchers.Main) {
-                        Toast.makeText(appContext, "Saved!", Toast.LENGTH_SHORT).show()
-                    }
-                    triggerBackgroundSync(appContext)
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
+            // Check pre-fetched
+            if (capturedLocation != null) {
+                performInsert(appContext, combinedPaths, title, combinedDetails, capturedLocation!!.latitude, capturedLocation!!.longitude, "Lat: ${capturedLocation!!.latitude}, Lng: ${capturedLocation!!.longitude}")
+                return
             }
+
+            Toast.makeText(appContext, "Acquiring GPS...", Toast.LENGTH_SHORT).show()
 
             if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
                 val fusedLocationClient = LocationServices.getFusedLocationProviderClient(appContext)
                 val cancellationTokenSource = CancellationTokenSource()
 
+                // ... inside saveFreshnessLog ...
+                // ... inside saveVolumeLog ...
+                // ... inside saveFreshnessLog ...
                 fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.token)
                     .addOnSuccessListener { location ->
                         if (location != null) {
-                            var placeName = "Location Unavailable"
+                            // FIX: Use appContext.getString
+                            var placeName = appContext.getString(R.string.location_not_available)
                             try {
                                 val geocoder = Geocoder(appContext, Locale.getDefault())
                                 @Suppress("DEPRECATION")
@@ -392,16 +414,18 @@ class FreshnessFragment : Fragment() {
                             } catch (e: Exception) {
                                 placeName = "Lat: ${location.latitude}, Lng: ${location.longitude}"
                             }
-                            performInsert(location.latitude, location.longitude, placeName)
+                            performInsert(appContext, combinedPaths, title, combinedDetails, location.latitude, location.longitude, placeName)
                         } else {
-                            performInsert(0.0, 0.0, "Location Unavailable")
+                            // FIX: Use appContext.getString
+                            performInsert(appContext, combinedPaths, title, combinedDetails, 0.0, 0.0, appContext.getString(R.string.location_not_available))
                         }
                     }
                     .addOnFailureListener {
-                        performInsert(0.0, 0.0, "Location Unavailable")
+                        // FIX: Use appContext.getString
+                        performInsert(appContext, combinedPaths, title, combinedDetails, 0.0, 0.0, appContext.getString(R.string.location_not_available))
                     }
             } else {
-                performInsert(0.0, 0.0, "Location Unavailable")
+                performInsert(appContext, combinedPaths, title, combinedDetails, 0.0, 0.0, getString(R.string.location_not_available))
             }
 
         } catch (e: Exception) {
@@ -409,10 +433,19 @@ class FreshnessFragment : Fragment() {
         }
     }
 
-    private fun triggerBackgroundSync(context: Context) {
-        val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
-        val syncRequest = OneTimeWorkRequest.Builder(SyncWorker::class.java).setConstraints(constraints).build()
-        WorkManager.getInstance(context).enqueueUniqueWork("HistoryUploadWork", ExistingWorkPolicy.APPEND, syncRequest)
+    private fun performInsert(context: Context, paths: String, title: String, details: String, lat: Double, lng: Double, placeName: String) {
+        try {
+            val db = DatabaseHelper(context)
+            db.insertLog(System.currentTimeMillis(), paths, title, details, lat, lng, placeName, DatabaseHelper.TYPE_FRESHNESS)
+            lifecycleScope.launch(Dispatchers.Main) {
+                Toast.makeText(context, getString(R.string.saved), Toast.LENGTH_SHORT).show()
+            }
+            val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+            val syncRequest = OneTimeWorkRequest.Builder(SyncWorker::class.java).setConstraints(constraints).build()
+            WorkManager.getInstance(context).enqueueUniqueWork("HistoryUploadWork", ExistingWorkPolicy.APPEND, syncRequest)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     private fun drawBoundingBoxes(context: Context, bitmap: Bitmap, boxes: List<BoundingBox>): Bitmap {

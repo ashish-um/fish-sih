@@ -55,6 +55,9 @@ import java.util.Locale
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 
 class CameraFragment : Fragment(), Detector.DetectorListener {
 
@@ -409,30 +412,51 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         val resultsToSave = lastResults
         val eyesToSave = lastEyeResults
 
-        var currentLat = 0.0
-        var currentLng = 0.0
-        var placeName = getString(R.string.location_not_available)
+        // Show a loading indicator if you have one, or a toast
+        Toast.makeText(context, "Acquiring GPS...", Toast.LENGTH_SHORT).show()
 
-        try {
-            if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                val locationManager = requireContext().getSystemService(Context.LOCATION_SERVICE) as LocationManager
-                val lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER) ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-                if (lastKnownLocation != null) {
-                    currentLat = lastKnownLocation.latitude; currentLng = lastKnownLocation.longitude
-                    try {
-                        val geocoder = Geocoder(requireContext(), Locale.getDefault())
-                        @Suppress("DEPRECATION")
-                        val addresses = geocoder.getFromLocation(currentLat, currentLng, 1)
-                        if (!addresses.isNullOrEmpty()) {
-                            placeName = addresses[0].locality ?: addresses[0].getAddressLine(0)
-                        } else {
+        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            val fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireContext())
+            val cancellationTokenSource = CancellationTokenSource()
+
+            fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.token)
+                .addOnSuccessListener { location ->
+                    var currentLat = 0.0
+                    var currentLng = 0.0
+                    var placeName = getString(R.string.location_not_available)
+
+                    if (location != null) {
+                        currentLat = location.latitude
+                        currentLng = location.longitude
+                        try {
+                            val geocoder = Geocoder(requireContext(), Locale.getDefault())
+                            @Suppress("DEPRECATION")
+                            val addresses = geocoder.getFromLocation(currentLat, currentLng, 1)
+                            if (!addresses.isNullOrEmpty()) {
+                                placeName = addresses[0].locality ?: addresses[0].getAddressLine(0)
+                            } else {
+                                placeName = getString(R.string.lat_lng_location, currentLat, currentLng)
+                            }
+                        } catch (e: Exception) {
                             placeName = getString(R.string.lat_lng_location, currentLat, currentLng)
                         }
-                    } catch (e: Exception) { placeName = getString(R.string.lat_lng_location, currentLat, currentLng) }
-                }
-            }
-        } catch (e: Exception) { Log.e(TAG, getString(R.string.location_error), e) }
+                    }
 
+                    // --- PROCEED TO SAVE WITH FRESH LOCATION ---
+                    saveDetectionToDb(bitmapToSave, resultsToSave, eyesToSave, currentLat, currentLng, placeName)
+                }
+                .addOnFailureListener {
+                    // Fallback if GPS fails
+                    saveDetectionToDb(bitmapToSave, resultsToSave, eyesToSave, 0.0, 0.0, getString(R.string.location_not_available))
+                }
+        } else {
+            // Permission not granted, save without location
+            saveDetectionToDb(bitmapToSave, resultsToSave, eyesToSave, 0.0, 0.0, getString(R.string.location_not_available))
+        }
+    }
+
+    // Helper function to handle the actual file/DB saving (Extracted from your original code)
+    private fun saveDetectionToDb(bitmapToSave: Bitmap, resultsToSave: List<BoundingBox>, eyesToSave: List<BoundingBox>, lat: Double, lng: Double, placeName: String) {
         try {
             val mutableBitmap = bitmapToSave.copy(Bitmap.Config.ARGB_8888, true)
             val canvas = Canvas(mutableBitmap)
@@ -441,10 +465,12 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             val textPaint = Paint().apply { color = Color.WHITE; textSize = 40f; style = Paint.Style.FILL }
             val textBgPaint = Paint().apply { color = Color.BLACK; style = Paint.Style.FILL }
 
+            // Use your existing color palette logic
+            val boxColors = listOf(Color.parseColor("#FF5722"), Color.parseColor("#2979FF"), Color.parseColor("#00C853"), Color.parseColor("#FFD600"), Color.parseColor("#AA00FF"), Color.parseColor("#E91E63"), Color.parseColor("#00BCD4"), Color.parseColor("#3E2723"))
+
             resultsToSave.forEachIndexed { index, box ->
                 val color = boxColors[index % boxColors.size]
                 boxPaint.color = color
-
                 val left = box.x1 * mutableBitmap.width; val top = box.y1 * mutableBitmap.height
                 val right = box.x2 * mutableBitmap.width; val bottom = box.y2 * mutableBitmap.height
                 canvas.drawRect(left, top, right, bottom, boxPaint)
@@ -455,10 +481,8 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             }
 
             eyesToSave.forEach { box ->
-                val left = box.x1 * mutableBitmap.width
-                val top = box.y1 * mutableBitmap.height
-                val right = box.x2 * mutableBitmap.width
-                val bottom = box.y2 * mutableBitmap.height
+                val left = box.x1 * mutableBitmap.width; val top = box.y1 * mutableBitmap.height
+                val right = box.x2 * mutableBitmap.width; val bottom = box.y2 * mutableBitmap.height
                 canvas.drawRect(left, top, right, bottom, eyePaint)
             }
 
@@ -469,11 +493,8 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             out.flush(); out.close()
 
             val fishCountList = resultsToSave.map { "${it.clsName} ${(it.cnf * 100).toInt()}%" }.toMutableList()
-            if (eyesToSave.isNotEmpty()) {
-                fishCountList.add("Eyes: ${eyesToSave.size}")
-            }
+            if (eyesToSave.isNotEmpty()) fishCountList.add("Eyes: ${eyesToSave.size}")
             val countsString = fishCountList.joinToString(", ")
-
             val details = "Total: ${resultsToSave.size}, Eyes: ${eyesToSave.size}, Conf: ${resultsToSave.map { String.format("%.2f", it.cnf) }}"
 
             dbHelper.insertDetection(
@@ -481,15 +502,15 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                 imagePath = file.absolutePath,
                 fishCount = countsString.ifEmpty { getString(R.string.none) },
                 details = details,
-                lat = currentLat,
-                lng = currentLng,
+                lat = lat,
+                lng = lng,
                 placeName = placeName
             )
 
             Toast.makeText(context, getString(R.string.saved_at_place, placeName), Toast.LENGTH_SHORT).show()
             triggerBackgroundSync()
         } catch (e: Exception) {
-            Log.e(TAG, getString(R.string.error_saving_detection), e)
+            Log.e("CameraFragment", getString(R.string.error_saving_detection), e)
             Toast.makeText(context, getString(R.string.error_saving, e.message), Toast.LENGTH_SHORT).show()
         }
     }

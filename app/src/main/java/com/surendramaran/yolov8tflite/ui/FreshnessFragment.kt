@@ -41,7 +41,9 @@ import java.util.Locale
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import com.surendramaran.yolov8tflite.ml.segmentation.utils.Utils
-
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 class FreshnessFragment : Fragment() {
 
     private var _binding: FragmentFreshnessBinding? = null
@@ -310,6 +312,7 @@ class FreshnessFragment : Fragment() {
     }
 
     private fun saveFreshnessLog() {
+        // 1. Prepare Images (Same as before)
         val paths = mutableListOf<String>()
         val descriptions = mutableListOf<String>()
         val bitmapsWithBoxes = mutableListOf<Bitmap>()
@@ -333,6 +336,7 @@ class FreshnessFragment : Fragment() {
         if (bitmapsWithBoxes.isEmpty()) return
 
         try {
+            // 2. Save Files Locally (Same as before)
             bitmapsWithBoxes.forEachIndexed { index, bitmap ->
                 val filename = "fresh_${System.currentTimeMillis()}_$index.jpg"
                 val file = File(requireContext().filesDir, filename)
@@ -346,45 +350,45 @@ class FreshnessFragment : Fragment() {
             val combinedDetails = descriptions.joinToString(";;;")
             val title = binding.txtFinalResult.text.toString()
 
-            var currentLat = 0.0
-            var currentLng = 0.0
-            var placeName = getString(R.string.location_not_available)
+            // 3. NEW LOCATION LOGIC STARTS HERE
+            Toast.makeText(context, "Acquiring GPS...", Toast.LENGTH_SHORT).show()
 
-            try {
-                if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                    val locationManager = requireContext().getSystemService(Context.LOCATION_SERVICE) as LocationManager
-                    val lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-                        ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+            fun performInsert(lat: Double, lng: Double, placeName: String) {
+                dbHelper.insertLog(System.currentTimeMillis(), combinedPaths, title, combinedDetails, lat, lng, placeName, DatabaseHelper.TYPE_FRESHNESS)
+                Toast.makeText(context, getString(R.string.saved), Toast.LENGTH_SHORT).show()
 
-                    if (lastKnownLocation != null) {
-                        currentLat = lastKnownLocation.latitude
-                        currentLng = lastKnownLocation.longitude
-                        val geocoder = Geocoder(requireContext(), Locale.getDefault())
-                        @Suppress("DEPRECATION")
-                        val addresses = geocoder.getFromLocation(currentLat, currentLng, 1)
-                        if (!addresses.isNullOrEmpty()) {
-                            placeName = addresses[0].locality ?: addresses[0].getAddressLine(0)
+                val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+                val syncRequest = OneTimeWorkRequest.Builder(SyncWorker::class.java).setConstraints(constraints).build()
+                WorkManager.getInstance(requireContext()).enqueueUniqueWork("HistoryUploadWork", ExistingWorkPolicy.APPEND, syncRequest)
+            }
+
+            if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                val fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireContext())
+                val cancellationTokenSource = CancellationTokenSource()
+
+                fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.token)
+                    .addOnSuccessListener { location ->
+                        if (location != null) {
+                            var placeName = getString(R.string.location_not_available)
+                            try {
+                                val geocoder = Geocoder(requireContext(), Locale.getDefault())
+                                @Suppress("DEPRECATION")
+                                val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
+                                if (!addresses.isNullOrEmpty()) {
+                                    placeName = addresses[0].locality ?: addresses[0].getAddressLine(0)
+                                }
+                            } catch (e: Exception) {}
+                            performInsert(location.latitude, location.longitude, placeName)
+                        } else {
+                            performInsert(0.0, 0.0, getString(R.string.location_not_available))
                         }
                     }
-                }
-            } catch (e: Exception) {}
-
-            dbHelper.insertLog(
-                System.currentTimeMillis(),
-                combinedPaths,
-                title,
-                combinedDetails,
-                currentLat,
-                currentLng,
-                placeName,
-                DatabaseHelper.TYPE_FRESHNESS
-            )
-
-            Toast.makeText(context, getString(R.string.saved), Toast.LENGTH_SHORT).show()
-
-            val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
-            val syncRequest = OneTimeWorkRequest.Builder(SyncWorker::class.java).setConstraints(constraints).build()
-            WorkManager.getInstance(requireContext()).enqueueUniqueWork("HistoryUploadWork", ExistingWorkPolicy.APPEND, syncRequest)
+                    .addOnFailureListener {
+                        performInsert(0.0, 0.0, getString(R.string.location_not_available))
+                    }
+            } else {
+                performInsert(0.0, 0.0, getString(R.string.location_not_available))
+            }
 
         } catch (e: Exception) {
             Toast.makeText(context, getString(R.string.error_saving, e.message), Toast.LENGTH_SHORT).show()

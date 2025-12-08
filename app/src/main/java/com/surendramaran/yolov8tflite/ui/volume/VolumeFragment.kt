@@ -68,6 +68,9 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.sqrt
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 
 class VolumeFragment : Fragment(), Detector.DetectorListener {
 
@@ -453,32 +456,46 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
     }
 
     private fun saveToDb(imagePath: String, title: String, details: String) {
-        try {
-            var currentLat = 0.0; var currentLng = 0.0; var placeName = getString(R.string.location_not_available)
+        Toast.makeText(context, "Acquiring GPS...", Toast.LENGTH_SHORT).show()
+
+        fun performInsert(lat: Double, lng: Double, placeName: String) {
             try {
-                if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                    val locationManager = requireContext().getSystemService(Context.LOCATION_SERVICE) as LocationManager
-                    val lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-                        ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-                    if (lastKnownLocation != null) {
-                        currentLat = lastKnownLocation.latitude
-                        currentLng = lastKnownLocation.longitude
-                        val geocoder = Geocoder(requireContext(), Locale.getDefault())
-                        @Suppress("DEPRECATION")
-                        val addresses = geocoder.getFromLocation(currentLat, currentLng, 1)
-                        if (!addresses.isNullOrEmpty()) {
-                            placeName = addresses[0].locality ?: addresses[0].getAddressLine(0)
-                        }
+                dbHelper.insertLog(System.currentTimeMillis(), imagePath, title, details, lat, lng, placeName, DatabaseHelper.TYPE_VOLUME)
+                toast(getString(R.string.volume_log_saved))
+                triggerBackgroundSync()
+            } catch (e: Exception) {
+                toast(getString(R.string.error_saving, e.message))
+            }
+        }
+
+        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            val fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireContext())
+            val cancellationTokenSource = CancellationTokenSource()
+
+            fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.token)
+                .addOnSuccessListener { location ->
+                    if (location != null) {
+                        var placeName = getString(R.string.location_not_available)
+                        try {
+                            val geocoder = Geocoder(requireContext(), Locale.getDefault())
+                            @Suppress("DEPRECATION")
+                            val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
+                            if (!addresses.isNullOrEmpty()) {
+                                placeName = addresses[0].locality ?: addresses[0].getAddressLine(0)
+                            }
+                        } catch (e: Exception) {}
+                        performInsert(location.latitude, location.longitude, placeName)
+                    } else {
+                        performInsert(0.0, 0.0, getString(R.string.location_not_available))
                     }
                 }
-            } catch (e: Exception) {}
-
-            dbHelper.insertLog(System.currentTimeMillis(), imagePath, title, details, currentLat, currentLng, placeName, DatabaseHelper.Companion.TYPE_VOLUME)
-            toast(getString(R.string.volume_log_saved))
-            triggerBackgroundSync()
-        } catch (e: Exception) { toast(getString(R.string.error_saving, e.message)) }
+                .addOnFailureListener {
+                    performInsert(0.0, 0.0, getString(R.string.location_not_available))
+                }
+        } else {
+            performInsert(0.0, 0.0, getString(R.string.location_not_available))
+        }
     }
-
     private fun triggerBackgroundSync() {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)

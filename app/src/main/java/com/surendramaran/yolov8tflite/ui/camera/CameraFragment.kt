@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
@@ -22,6 +23,7 @@ import android.view.ScaleGestureDetector
 import android.view.Surface
 import android.view.View
 import android.view.ViewGroup
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -40,7 +42,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
-import com.google.android.material.progressindicator.LinearProgressIndicator
+import com.google.android.material.chip.Chip
 import com.surendramaran.yolov8tflite.R
 import com.surendramaran.yolov8tflite.data.Constants.LABELS_PATH
 import com.surendramaran.yolov8tflite.data.Constants.MODEL_PATH
@@ -294,41 +296,50 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         }
     }
 
-    // --- NEW: Calculate and Display Species Distribution ---
+    // --- Calculate and Display Species Distribution with Stacked Bar ---
     private fun calculateSpeciesDistribution(boxes: List<BoundingBox>) {
         if (boxes.isEmpty()) {
-            binding.speciesRatioContainer.visibility = View.GONE
             binding.tvSpeciesRatioTitle.visibility = View.GONE
+            binding.cardSpeciesBar.visibility = View.GONE
+            binding.speciesLegendGroup.visibility = View.GONE
             return
         }
 
-        binding.speciesRatioContainer.removeAllViews()
+        binding.speciesStackedBar.removeAllViews()
+        binding.speciesLegendGroup.removeAllViews()
+
         val totalFish = boxes.size
         val grouped = boxes.groupBy { it.clsName }
+        // Sort for consistent display (most frequent first)
+        val sortedGrouped = grouped.toList().sortedByDescending { it.second.size }
 
-        for ((species, speciesBoxes) in grouped) {
+        for ((species, speciesBoxes) in sortedGrouped) {
             val count = speciesBoxes.size
-            val ratio = (count.toFloat() / totalFish) * 100
             val color = speciesColorMap[species] ?: Color.GRAY
 
-            val view = LayoutInflater.from(requireContext()).inflate(R.layout.item_analytics_species, binding.speciesRatioContainer, false)
+            // 1. Add Segment to Stacked Bar
+            val segment = View(requireContext())
+            val params = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT)
+            // Use weight to distribute width proportionally
+            params.weight = count.toFloat()
+            segment.layoutParams = params
+            segment.setBackgroundColor(color)
+            binding.speciesStackedBar.addView(segment)
 
-            val tvName = view.findViewById<TextView>(R.id.tvSpeciesName)
-            val tvCount = view.findViewById<TextView>(R.id.tvSpeciesCount)
-            val progress = view.findViewById<LinearProgressIndicator>(R.id.speciesProgress)
-
-            tvName.text = species
-            tvCount.text = "$count (${ratio.toInt()}%)"
-
-            progress.progress = ratio.toInt()
-            progress.setIndicatorColor(color)
-            progress.trackColor = Color.parseColor("#EEEEEE") // Light gray track
-
-            binding.speciesRatioContainer.addView(view)
+            // 2. Add Chip to Legend
+            val chip = Chip(requireContext())
+            val ratio = (count.toFloat() / totalFish) * 100
+            chip.text = "$species: $count (${ratio.toInt()}%)"
+            chip.chipBackgroundColor = ColorStateList.valueOf(color)
+            chip.setTextColor(Color.WHITE)
+            chip.isClickable = false
+            chip.ensureAccessibleTouchTarget(0) // Minimal touch target not needed for display-only
+            binding.speciesLegendGroup.addView(chip)
         }
 
         binding.tvSpeciesRatioTitle.visibility = View.VISIBLE
-        binding.speciesRatioContainer.visibility = View.VISIBLE
+        binding.cardSpeciesBar.visibility = View.VISIBLE
+        binding.speciesLegendGroup.visibility = View.VISIBLE
     }
 
     private fun showPausedState() {
@@ -382,11 +393,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                     detector?.detect(bitmap)
                     detectorEyes?.detect(bitmap)
                 }
-                // Show ratios for gallery images too (after detection updates lastResults)
-                // Note: onDetect runs asynchronously, so ratios might delay slightly.
-                // To be safe, we can call it in onDetect if !isCameraRunning, but let's leave it here
-                // assuming fast inference or user waits a split second.
-                // Better approach: update in onDetect if detection is finished.
 
             } else {
                 Toast.makeText(context, "Failed to load image", Toast.LENGTH_SHORT).show()
@@ -408,8 +414,9 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
 
         binding.tvFreshnessSummary.visibility = View.GONE
         binding.freshnessProgress.visibility = View.GONE
-        binding.speciesRatioContainer.visibility = View.GONE
         binding.tvSpeciesRatioTitle.visibility = View.GONE
+        binding.cardSpeciesBar.visibility = View.GONE
+        binding.speciesLegendGroup.visibility = View.GONE
     }
 
     private fun restartCameraPreview() {
@@ -422,8 +429,9 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
 
         binding.tvFreshnessSummary.visibility = View.GONE
         binding.freshnessProgress.visibility = View.GONE
-        binding.speciesRatioContainer.visibility = View.GONE
         binding.tvSpeciesRatioTitle.visibility = View.GONE
+        binding.cardSpeciesBar.visibility = View.GONE
+        binding.speciesLegendGroup.visibility = View.GONE
 
         binding.fab.setImageResource(R.drawable.ic_camera)
         binding.overlay.setCameraMode()

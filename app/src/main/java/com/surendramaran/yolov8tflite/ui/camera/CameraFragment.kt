@@ -82,7 +82,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
     private var camera: Camera? = null
     private var cameraProvider: ProcessCameraProvider? = null
 
-    // --- CHANGED: Added Nano Detector for Real-time ---
+    // --- Models ---
     private var detector: Detector? = null      // High accuracy (Small) model for capture
     private var detectorNano: Detector? = null  // Fast (Nano) model for preview
     private var detectorEyes: Detector? = null
@@ -159,7 +159,8 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                         }
                         val freshRatio = (freshCount.toFloat() / totalEyes) * 100
 
-                        binding.tvFreshnessSummary.text = "Freshness: ${freshRatio.toInt()}% ($freshCount/$totalEyes)"
+                        // UPDATED: "Approx Freshness"
+                        binding.tvFreshnessSummary.text = "Approx Freshness: ${freshRatio.toInt()}% ($freshCount/$totalEyes)"
                         binding.freshnessProgress.progress = freshRatio.toInt()
 
                         val color = if(freshRatio > 75) Color.parseColor("#4CAF50")
@@ -197,7 +198,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         cameraExecutor = Executors.newSingleThreadExecutor()
 
         cameraExecutor.execute {
-            // --- CHANGED: Initialize both models ---
+            // Initialize both models
             // Standard/Small Model for Capture
             detector = Detector(requireContext(), MODEL_PATH, LABELS_PATH, this)
             // Nano Model for Real-time Preview
@@ -293,7 +294,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                         clearDetections()
 
                         cameraExecutor.execute {
-                            // --- CHANGED: Use High Accuracy (Small) Model for final result ---
+                            // Use High Accuracy (Small) Model for final result
                             detector?.detect(bmp)
                             detectorEyes?.detect(bmp)
                         }
@@ -310,7 +311,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         }
     }
 
-    // --- NEW: Pre-fetch Location ---
     private fun prefetchLocation() {
         val appContext = context?.applicationContext ?: return
 
@@ -400,7 +400,9 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         val sortedStats = speciesStats.sortedByDescending { it.totalWeight }
         val totalKg = grandTotalWeight / 1000.0
         val totalLiters = grandTotalVolume / 1000.0
-        binding.tvBiomassTitle.text = "Est. Biomass (Total: ${String.format("%.2f", totalKg)} kg | ${String.format("%.2f", totalLiters)} L)"
+
+        // UPDATED: "Approx Biomass"
+        binding.tvBiomassTitle.text = "Approx Biomass (Total: ${String.format("%.2f", totalKg)} kg | ${String.format("%.2f", totalLiters)} L)"
 
         for (stat in sortedStats) {
             val rowLayout = LinearLayout(requireContext()).apply {
@@ -413,7 +415,9 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             val weightKg = stat.totalWeight / 1000.0
             val volumeL = stat.totalVolume / 1000.0
             val infoText = TextView(requireContext()).apply {
-                text = "${stat.name}: ${String.format("%.1f", weightKg)} kg  |  ${String.format("%.1f", volumeL)} L"
+                // Keep "approx" per line if you wish, or remove it since the title says it.
+                // I'll leave it as requested in previous step for consistency.
+                text = "${stat.name}: ${String.format("%.1f", weightKg)} kg (approx.)  |  ${String.format("%.1f", volumeL)} L (approx.)"
                 textSize = 14f
                 setTextColor(Color.parseColor("#424242"))
                 setTypeface(null, android.graphics.Typeface.BOLD)
@@ -585,7 +589,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             lastBitmap = croppedBitmap
 
             if (isCameraRunning) {
-                // --- CHANGED: Use Nano Detector for Real-time Preview ---
+                // Use Nano Detector for Real-time Preview
                 detectorNano?.detect(croppedBitmap)
             }
         }
@@ -710,7 +714,8 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                     !label.contains("non") && !label.contains("spoil")
                 }
                 val freshRatio = (freshCount.toFloat() / totalEyes) * 100
-                freshnessString = "Freshness: ${freshRatio.toInt()}% ($freshCount/$totalEyes);;;"
+                // UPDATED: "Approx Freshness"
+                freshnessString = "Approx Freshness: ${freshRatio.toInt()}% ($freshCount/$totalEyes);;;"
             }
 
             val fishCountList = resultsToSave.map { "${it.clsName} ${(it.cnf * 100).toInt()}%" }.toMutableList()
@@ -758,7 +763,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
 
     override fun onDestroy() {
         super.onDestroy()
-        // --- CHANGED: Close both detectors ---
+        // Close both detectors
         detector?.close()
         detectorNano?.close()
         detectorEyes?.close()

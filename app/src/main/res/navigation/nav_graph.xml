@@ -24,7 +24,15 @@
         android:id="@+id/analyticsFragment"
         android:name="com.surendramaran.yolov8tflite.ui.AnalyticsFragment"
         android:label="@string/analytics"
-        tools:layout="@layout/fragment_analytics" />
+        tools:layout="@layout/fragment_analytics">
+        <action
+            android:id="@+id/action_analytics_to_detail"
+            app:destination="@id/historyDetailFragment"
+            app:enterAnim="@anim/fade_in"
+            app:exitAnim="@anim/fade_out"
+            app:popEnterAnim="@anim/fade_in"
+            app:popExitAnim="@anim/fade_out" />
+    </fragment>
 
     <fragment
         android:id="@+id/moreFragment"

@@ -319,7 +319,8 @@ class AnalyticsFragment : Fragment() {
                 "lat" to item.lat.toFloat(),
                 "lng" to item.lng.toFloat()
             )
-            findNavController().navigate(R.id.action_history_to_detail, bundle)
+            // Use the new action ID specific to AnalyticsFragment
+            findNavController().navigate(R.id.action_analytics_to_detail, bundle)
         }
     }
 

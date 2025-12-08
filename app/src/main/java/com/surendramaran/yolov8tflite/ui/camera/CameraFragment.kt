@@ -58,6 +58,7 @@ import java.util.concurrent.TimeUnit
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
+import kotlin.math.max
 
 class CameraFragment : Fragment(), Detector.DetectorListener {
 
@@ -120,6 +121,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                     binding.eyesCountLabel.visibility = View.VISIBLE
                     binding.overlay.setEyeResults(emptyList())
                     binding.loadingProgress.visibility = View.GONE
+                    updateTotalCount()
                 }
             }
         }
@@ -132,6 +134,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                     binding.eyesCountLabel.visibility = View.VISIBLE
                     binding.overlay.setEyeResults(boundingBoxes)
                     binding.loadingProgress.visibility = View.GONE
+                    updateTotalCount()
                 }
             }
         }
@@ -539,12 +542,20 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         if (::cameraExecutor.isInitialized) cameraExecutor.shutdown()
     }
 
+    private fun updateTotalCount() {
+        if (_binding == null) return
+        val fishCount = lastResults.size
+        val eyeCount = lastEyeResults.size
+        val total = max(fishCount, eyeCount)
+        binding.totalCountLabel.text = getString(R.string.total_detected, total)
+    }
+
     override fun onEmptyDetect() {
         lastResults = emptyList()
         activity?.runOnUiThread {
             if (_binding != null) {
                 binding.overlay.setResults(emptyList(), emptyList())
-                binding.totalCountLabel.text = getString(R.string.total_detected, 0)
+                updateTotalCount()
                 binding.noDetectionText.visibility = View.VISIBLE
                 binding.detectionList.visibility = View.GONE
                 detectionAdapter.updateDetections(emptyList())
@@ -572,7 +583,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                     )
                 }
 
-                binding.totalCountLabel.text = getString(R.string.total_detected, boundingBoxes.size)
+                updateTotalCount()
                 if (detectionItems.isEmpty()) {
                     binding.noDetectionText.visibility = View.VISIBLE
                     binding.detectionList.visibility = View.GONE

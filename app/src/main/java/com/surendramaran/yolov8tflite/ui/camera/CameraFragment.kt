@@ -81,7 +81,10 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
     private var imageAnalyzer: ImageAnalysis? = null
     private var camera: Camera? = null
     private var cameraProvider: ProcessCameraProvider? = null
-    private var detector: Detector? = null
+
+    // --- CHANGED: Added Nano Detector for Real-time ---
+    private var detector: Detector? = null      // High accuracy (Small) model for capture
+    private var detectorNano: Detector? = null  // Fast (Nano) model for preview
     private var detectorEyes: Detector? = null
 
     private lateinit var cameraExecutor: ExecutorService
@@ -194,7 +197,12 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         cameraExecutor = Executors.newSingleThreadExecutor()
 
         cameraExecutor.execute {
+            // --- CHANGED: Initialize both models ---
+            // Standard/Small Model for Capture
             detector = Detector(requireContext(), MODEL_PATH, LABELS_PATH, this)
+            // Nano Model for Real-time Preview
+            detectorNano = Detector(requireContext(), "model_nano.tflite", LABELS_PATH, this)
+
             detectorEyes = Detector(requireContext(), "eyes_model.tflite", "eyes_labels.txt", eyesListener)
         }
 
@@ -285,6 +293,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                         clearDetections()
 
                         cameraExecutor.execute {
+                            // --- CHANGED: Use High Accuracy (Small) Model for final result ---
                             detector?.detect(bmp)
                             detectorEyes?.detect(bmp)
                         }
@@ -576,7 +585,8 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             lastBitmap = croppedBitmap
 
             if (isCameraRunning) {
-                detector?.detect(croppedBitmap)
+                // --- CHANGED: Use Nano Detector for Real-time Preview ---
+                detectorNano?.detect(croppedBitmap)
             }
         }
         cameraProvider.unbindAll()
@@ -625,13 +635,10 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             val fusedLocationClient = LocationServices.getFusedLocationProviderClient(appContext)
             val cancellationTokenSource = CancellationTokenSource()
 
-            // ... inside saveCurrentDetection ...
-            // ... inside saveCurrentDetection ...
             fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.token)
                 .addOnSuccessListener { location ->
                     var currentLat = 0.0
                     var currentLng = 0.0
-                    // FIX: Use appContext.getString
                     var placeName = appContext.getString(R.string.location_not_available)
 
                     if (location != null) {
@@ -644,22 +651,19 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                             if (!addresses.isNullOrEmpty()) {
                                 placeName = addresses[0].locality ?: addresses[0].getAddressLine(0)
                             } else {
-                                // FIX: Use appContext.getString
                                 placeName = appContext.getString(R.string.lat_lng_location, currentLat, currentLng)
                             }
                         } catch (e: Exception) {
-                            // FIX: Use appContext.getString
                             placeName = appContext.getString(R.string.lat_lng_location, currentLat, currentLng)
                         }
                     }
                     saveDetectionToDb(appContext, bitmapToSave, resultsToSave, eyesToSave, currentLat, currentLng, placeName)
                 }
                 .addOnFailureListener {
-                    // FIX: Use appContext.getString
                     saveDetectionToDb(appContext, bitmapToSave, resultsToSave, eyesToSave, 0.0, 0.0, appContext.getString(R.string.location_not_available))
                 }
         } else {
-            saveDetectionToDb(appContext, bitmapToSave, resultsToSave, eyesToSave, 0.0, 0.0, getString(R.string.location_not_available))
+            saveDetectionToDb(appContext, bitmapToSave, resultsToSave, eyesToSave, 0.0, 0.0, appContext.getString(R.string.location_not_available))
         }
     }
 
@@ -754,7 +758,9 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
 
     override fun onDestroy() {
         super.onDestroy()
+        // --- CHANGED: Close both detectors ---
         detector?.close()
+        detectorNano?.close()
         detectorEyes?.close()
         if (::cameraExecutor.isInitialized) cameraExecutor.shutdown()
     }

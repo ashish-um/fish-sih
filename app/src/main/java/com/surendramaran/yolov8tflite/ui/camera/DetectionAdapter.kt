@@ -8,10 +8,10 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.surendramaran.yolov8tflite.R
 
-// Changed class structure
 data class DetectionItem(
     val fishName: String,
-    val confidence: Float,
+    val count: Int,
+    val avgConfidence: Float,
     val color: Int
 )
 
@@ -43,15 +43,18 @@ class DetectionAdapter : RecyclerView.Adapter<DetectionAdapter.DetectionViewHold
         private val colorIndicator: View = itemView.findViewById(R.id.colorIndicator)
 
         fun bind(item: DetectionItem) {
-            fishName.text = item.fishName
+            // Display Name with Count, e.g., "Salmon (10)"
+            fishName.text = "${item.fishName} (${item.count})"
 
             // Set Color Indicator
             colorIndicator.background.setTint(item.color)
             confidenceBar.setIndicatorColor(item.color)
 
-            val confInt = (item.confidence * 100).toInt()
+            val confInt = (item.avgConfidence * 100).toInt()
             confidenceBar.progress = confInt
-            confidenceText.text = "$confInt%"
+
+            // Display Average Confidence
+            confidenceText.text = "Avg: $confInt%"
         }
     }
 }

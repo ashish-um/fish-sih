@@ -98,6 +98,9 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         Color.parseColor("#3E2723")  // Brown
     )
 
+    // Map to keep track of colors assigned to species to ensure consistency
+    private val speciesColorMap = mutableMapOf<String, Int>()
+
     private val galleryLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let { startCrop(it) }
     }
@@ -468,11 +471,11 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             val textPaint = Paint().apply { color = Color.WHITE; textSize = 40f; style = Paint.Style.FILL }
             val textBgPaint = Paint().apply { color = Color.BLACK; style = Paint.Style.FILL }
 
-            // Use your existing color palette logic
-            val boxColors = listOf(Color.parseColor("#FF5722"), Color.parseColor("#2979FF"), Color.parseColor("#00C853"), Color.parseColor("#FFD600"), Color.parseColor("#AA00FF"), Color.parseColor("#E91E63"), Color.parseColor("#00BCD4"), Color.parseColor("#3E2723"))
-
             resultsToSave.forEachIndexed { index, box ->
-                val color = boxColors[index % boxColors.size]
+                // Ensure species specific color consistency
+                val color = speciesColorMap.getOrPut(box.clsName) {
+                    boxColors[speciesColorMap.size % boxColors.size]
+                }
                 boxPaint.color = color
                 val left = box.x1 * mutableBitmap.width; val top = box.y1 * mutableBitmap.height
                 val right = box.x2 * mutableBitmap.width; val bottom = box.y2 * mutableBitmap.height
@@ -569,20 +572,34 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             if (_binding != null) {
                 binding.inferenceTime.text = getString(R.string.inference_time_ms, inferenceTime)
 
-                val currentColors = boundingBoxes.mapIndexed { index, _ ->
-                    boxColors[index % boxColors.size]
+                // 1. Group by Species Name
+                val groupedList = boundingBoxes.groupBy { it.clsName }
+
+                // 2. Prepare Colors for Overlay (Order must match original boundingBoxes to map correctly)
+                val overlayColors = boundingBoxes.map { box ->
+                    speciesColorMap.getOrPut(box.clsName) {
+                        boxColors[speciesColorMap.size % boxColors.size]
+                    }
                 }
 
-                binding.overlay.setResults(boundingBoxes, currentColors)
+                // 3. Update Overlay with boxes and their specific colors
+                binding.overlay.setResults(boundingBoxes, overlayColors)
 
-                val detectionItems = boundingBoxes.mapIndexed { index, box ->
+                // 4. Create Aggregated List for Adapter
+                val detectionItems = groupedList.map { (species, boxes) ->
+                    val count = boxes.size
+                    val avgConf = boxes.map { it.cnf }.average().toFloat()
+                    val color = speciesColorMap[species] ?: Color.WHITE
+
                     DetectionItem(
-                        fishName = box.clsName,
-                        confidence = box.cnf,
-                        color = currentColors[index]
+                        fishName = species,
+                        count = count,
+                        avgConfidence = avgConf,
+                        color = color
                     )
                 }
 
+                // 5. Update UI
                 updateTotalCount()
                 if (detectionItems.isEmpty()) {
                     binding.noDetectionText.visibility = View.VISIBLE

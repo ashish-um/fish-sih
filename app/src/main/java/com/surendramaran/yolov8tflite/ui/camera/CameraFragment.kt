@@ -13,6 +13,7 @@ import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Rect
 import android.location.Geocoder
+import android.location.LocationManager
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -34,6 +35,7 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
@@ -66,11 +68,9 @@ import com.google.android.gms.tasks.CancellationTokenSource
 import kotlin.math.max
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import androidx.lifecycle.lifecycleScope
 
 class CameraFragment : Fragment(), Detector.DetectorListener {
 
-    // ... (All properties remain the same) ...
     private var _binding: FragmentCameraBinding? = null
     private val binding get() = _binding!!
 
@@ -95,19 +95,12 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
 
     private var currentZoomRatio = 1.0f
 
-    // Color Palette
     private val boxColors = listOf(
-        Color.parseColor("#FF5722"), // Orange
-        Color.parseColor("#2979FF"), // Blue
-        Color.parseColor("#00C853"), // Green
-        Color.parseColor("#FFD600"), // Yellow
-        Color.parseColor("#AA00FF"), // Purple
-        Color.parseColor("#E91E63"), // Pink
-        Color.parseColor("#00BCD4"), // Cyan
-        Color.parseColor("#3E2723")  // Brown
+        Color.parseColor("#FF5722"), Color.parseColor("#2979FF"), Color.parseColor("#00C853"),
+        Color.parseColor("#FFD600"), Color.parseColor("#AA00FF"), Color.parseColor("#E91E63"),
+        Color.parseColor("#00BCD4"), Color.parseColor("#3E2723")
     )
 
-    // Map to keep track of colors assigned to species to ensure consistency
     private val speciesColorMap = mutableMapOf<String, Int>()
 
     private val galleryLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
@@ -151,7 +144,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                     binding.overlay.setEyeResults(boundingBoxes)
                     binding.loadingProgress.visibility = View.GONE
 
-                    // --- FRESHNESS RATIO CALCULATION (Live) ---
                     if (boundingBoxes.isNotEmpty()) {
                         val totalEyes = boundingBoxes.size
                         val freshCount = boundingBoxes.count { box ->
@@ -163,9 +155,9 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                         binding.tvFreshnessSummary.text = "Freshness: ${freshRatio.toInt()}% ($freshCount/$totalEyes)"
                         binding.freshnessProgress.progress = freshRatio.toInt()
 
-                        val color = if(freshRatio > 75) Color.parseColor("#4CAF50") // Green
-                        else if(freshRatio > 40) Color.parseColor("#FF9800") // Orange
-                        else Color.parseColor("#F44336") // Red
+                        val color = if(freshRatio > 75) Color.parseColor("#4CAF50")
+                        else if(freshRatio > 40) Color.parseColor("#FF9800")
+                        else Color.parseColor("#F44336")
 
                         binding.tvFreshnessSummary.setTextColor(color)
                         binding.freshnessProgress.setIndicatorColor(color)
@@ -183,7 +175,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         }
     }
 
-    // ... (onCreateView, onViewCreated, onResume, setupRecyclerView, bindListeners, calculateSpeciesDistribution, calculateBiomass, showPausedState, startCrop, processGalleryImage, clearDetections, restartCameraPreview, startCamera, bindCameraUseCases, cropBitmapToView remain the same as previous correct version) ...
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -587,7 +578,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         val bitmapToSave = lastBitmap ?: return
         val resultsToSave = lastResults
         val eyesToSave = lastEyeResults
-        // Use Application Context
+        // Use Application Context to safely run in background/async
         val appContext = requireContext().applicationContext
 
         Toast.makeText(appContext, "Acquiring GPS...", Toast.LENGTH_SHORT).show()
@@ -595,30 +586,36 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             val fusedLocationClient = LocationServices.getFusedLocationProviderClient(appContext)
 
-            // 1. Try Last Known Location (Fastest)
-            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
-                if (location != null) {
-                    saveDetectionToDb(appContext, bitmapToSave, resultsToSave, eyesToSave, location.latitude, location.longitude, "Lat: ${location.latitude}, Lng: ${location.longitude}")
-                } else {
-                    // 2. If null, request current location
-                    val cancellationTokenSource = CancellationTokenSource()
-                    fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.token)
-                        .addOnSuccessListener { currLoc ->
-                            if (currLoc != null) {
-                                saveDetectionToDb(appContext, bitmapToSave, resultsToSave, eyesToSave, currLoc.latitude, currLoc.longitude, "Lat: ${currLoc.latitude}, Lng: ${currLoc.longitude}")
+            val cancellationTokenSource = CancellationTokenSource()
+            fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.token)
+                .addOnSuccessListener { location ->
+                    var currentLat = 0.0
+                    var currentLng = 0.0
+                    var placeName = getString(R.string.location_not_available)
+
+                    if (location != null) {
+                        currentLat = location.latitude
+                        currentLng = location.longitude
+                        try {
+                            val geocoder = Geocoder(appContext, Locale.getDefault())
+                            @Suppress("DEPRECATION")
+                            val addresses = geocoder.getFromLocation(currentLat, currentLng, 1)
+                            if (!addresses.isNullOrEmpty()) {
+                                placeName = addresses[0].locality ?: addresses[0].getAddressLine(0)
                             } else {
-                                saveDetectionToDb(appContext, bitmapToSave, resultsToSave, eyesToSave, 0.0, 0.0, getString(R.string.location_not_available))
+                                placeName = "Lat: $currentLat, Lng: $currentLng"
                             }
+                        } catch (e: Exception) {
+                            placeName = "Lat: $currentLat, Lng: $currentLng"
                         }
-                        .addOnFailureListener {
-                            saveDetectionToDb(appContext, bitmapToSave, resultsToSave, eyesToSave, 0.0, 0.0, getString(R.string.location_not_available))
-                        }
+                    }
+                    saveDetectionToDb(appContext, bitmapToSave, resultsToSave, eyesToSave, currentLat, currentLng, placeName)
                 }
-            }.addOnFailureListener {
-                saveDetectionToDb(appContext, bitmapToSave, resultsToSave, eyesToSave, 0.0, 0.0, getString(R.string.location_not_available))
-            }
+                .addOnFailureListener {
+                    saveDetectionToDb(appContext, bitmapToSave, resultsToSave, eyesToSave, 0.0, 0.0, "Location Unavailable")
+                }
         } else {
-            saveDetectionToDb(appContext, bitmapToSave, resultsToSave, eyesToSave, 0.0, 0.0, getString(R.string.location_not_available))
+            saveDetectionToDb(appContext, bitmapToSave, resultsToSave, eyesToSave, 0.0, 0.0, "Location Unavailable")
         }
     }
 

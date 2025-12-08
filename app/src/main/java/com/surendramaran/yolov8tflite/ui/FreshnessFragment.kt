@@ -317,7 +317,8 @@ class FreshnessFragment : Fragment() {
     }
 
     private fun saveFreshnessLog() {
-        val appContext = requireContext().applicationContext // Capture application context
+        // Use Application Context
+        val appContext = requireContext().applicationContext
 
         val paths = mutableListOf<String>()
         val descriptions = mutableListOf<String>()
@@ -373,27 +374,32 @@ class FreshnessFragment : Fragment() {
 
             if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
                 val fusedLocationClient = LocationServices.getFusedLocationProviderClient(appContext)
+                val cancellationTokenSource = CancellationTokenSource()
 
-                fusedLocationClient.lastLocation.addOnSuccessListener { location ->
-                    if (location != null) {
-                        performInsert(location.latitude, location.longitude, "Lat: ${location.latitude}, Lng: ${location.longitude}")
-                    } else {
-                        val cancellationTokenSource = CancellationTokenSource()
-                        fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.token)
-                            .addOnSuccessListener { currLoc ->
-                                if (currLoc != null) {
-                                    performInsert(currLoc.latitude, currLoc.longitude, "Lat: ${currLoc.latitude}, Lng: ${currLoc.longitude}")
+                fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.token)
+                    .addOnSuccessListener { location ->
+                        if (location != null) {
+                            var placeName = "Location Unavailable"
+                            try {
+                                val geocoder = Geocoder(appContext, Locale.getDefault())
+                                @Suppress("DEPRECATION")
+                                val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
+                                if (!addresses.isNullOrEmpty()) {
+                                    placeName = addresses[0].locality ?: addresses[0].getAddressLine(0)
                                 } else {
-                                    performInsert(0.0, 0.0, "Location Unavailable")
+                                    placeName = "Lat: ${location.latitude}, Lng: ${location.longitude}"
                                 }
+                            } catch (e: Exception) {
+                                placeName = "Lat: ${location.latitude}, Lng: ${location.longitude}"
                             }
-                            .addOnFailureListener {
-                                performInsert(0.0, 0.0, "Location Unavailable")
-                            }
+                            performInsert(location.latitude, location.longitude, placeName)
+                        } else {
+                            performInsert(0.0, 0.0, "Location Unavailable")
+                        }
                     }
-                }.addOnFailureListener {
-                    performInsert(0.0, 0.0, "Location Unavailable")
-                }
+                    .addOnFailureListener {
+                        performInsert(0.0, 0.0, "Location Unavailable")
+                    }
             } else {
                 performInsert(0.0, 0.0, "Location Unavailable")
             }

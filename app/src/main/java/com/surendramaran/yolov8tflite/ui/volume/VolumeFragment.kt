@@ -10,6 +10,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.location.Geocoder
+import android.location.LocationManager
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -475,28 +476,31 @@ class VolumeFragment : Fragment(), Detector.DetectorListener {
         if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             val fusedLocationClient = LocationServices.getFusedLocationProviderClient(appContext)
 
-            // 1. Try Last Known Location (Fastest)
-            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
-                if (location != null) {
-                    performInsert(location.latitude, location.longitude, "Lat: ${location.latitude}, Lng: ${location.longitude}")
-                } else {
-                    // 2. If null, request current location
-                    val cancellationTokenSource = CancellationTokenSource()
-                    fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.token)
-                        .addOnSuccessListener { currLoc ->
-                            if (currLoc != null) {
-                                performInsert(currLoc.latitude, currLoc.longitude, "Lat: ${currLoc.latitude}, Lng: ${currLoc.longitude}")
+            val cancellationTokenSource = CancellationTokenSource()
+            fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.token)
+                .addOnSuccessListener { location ->
+                    if (location != null) {
+                        var placeName = getString(R.string.location_not_available)
+                        try {
+                            val geocoder = Geocoder(appContext, Locale.getDefault())
+                            @Suppress("DEPRECATION")
+                            val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
+                            if (!addresses.isNullOrEmpty()) {
+                                placeName = addresses[0].locality ?: addresses[0].getAddressLine(0)
                             } else {
-                                performInsert(0.0, 0.0, "Location Unavailable")
+                                placeName = "Lat: ${location.latitude}, Lng: ${location.longitude}"
                             }
+                        } catch (e: Exception) {
+                            placeName = "Lat: ${location.latitude}, Lng: ${location.longitude}"
                         }
-                        .addOnFailureListener {
-                            performInsert(0.0, 0.0, "Location Unavailable")
-                        }
+                        performInsert(location.latitude, location.longitude, placeName)
+                    } else {
+                        performInsert(0.0, 0.0, "Location Unavailable")
+                    }
                 }
-            }.addOnFailureListener {
-                performInsert(0.0, 0.0, "Location Unavailable")
-            }
+                .addOnFailureListener {
+                    performInsert(0.0, 0.0, "Location Unavailable")
+                }
         } else {
             performInsert(0.0, 0.0, "Location Unavailable")
         }

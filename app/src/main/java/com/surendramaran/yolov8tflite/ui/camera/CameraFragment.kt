@@ -22,6 +22,7 @@ import android.view.ScaleGestureDetector
 import android.view.Surface
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.AspectRatio
@@ -39,6 +40,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
+import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.surendramaran.yolov8tflite.R
 import com.surendramaran.yolov8tflite.data.Constants.LABELS_PATH
 import com.surendramaran.yolov8tflite.data.Constants.MODEL_PATH
@@ -124,6 +126,10 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                     binding.eyesCountLabel.visibility = View.VISIBLE
                     binding.overlay.setEyeResults(emptyList())
                     binding.loadingProgress.visibility = View.GONE
+
+                    binding.tvFreshnessSummary.visibility = View.GONE
+                    binding.freshnessProgress.visibility = View.GONE
+
                     updateTotalCount()
                 }
             }
@@ -137,6 +143,33 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                     binding.eyesCountLabel.visibility = View.VISIBLE
                     binding.overlay.setEyeResults(boundingBoxes)
                     binding.loadingProgress.visibility = View.GONE
+
+                    // --- FRESHNESS RATIO CALCULATION (Live) ---
+                    if (boundingBoxes.isNotEmpty()) {
+                        val totalEyes = boundingBoxes.size
+                        val freshCount = boundingBoxes.count { box ->
+                            val label = box.clsName.lowercase()
+                            !label.contains("non") && !label.contains("spoil")
+                        }
+                        val freshRatio = (freshCount.toFloat() / totalEyes) * 100
+
+                        binding.tvFreshnessSummary.text = "Freshness: ${freshRatio.toInt()}% ($freshCount/$totalEyes)"
+                        binding.freshnessProgress.progress = freshRatio.toInt()
+
+                        val color = if(freshRatio > 75) Color.parseColor("#4CAF50") // Green
+                        else if(freshRatio > 40) Color.parseColor("#FF9800") // Orange
+                        else Color.parseColor("#F44336") // Red
+
+                        binding.tvFreshnessSummary.setTextColor(color)
+                        binding.freshnessProgress.setIndicatorColor(color)
+
+                        binding.tvFreshnessSummary.visibility = View.VISIBLE
+                        binding.freshnessProgress.visibility = View.VISIBLE
+                    } else {
+                        binding.tvFreshnessSummary.visibility = View.GONE
+                        binding.freshnessProgress.visibility = View.GONE
+                    }
+
                     updateTotalCount()
                 }
             }
@@ -159,7 +192,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
 
         cameraExecutor.execute {
             detector = Detector(requireContext(), MODEL_PATH, LABELS_PATH, this)
-            detectorEyes = Detector(requireContext(), "eyes_identify.tflite", "eyes_labels.txt", eyesListener)
+            detectorEyes = Detector(requireContext(), "eyes_model.tflite", "eyes_labels.txt", eyesListener)
         }
 
         setupRecyclerView()
@@ -240,21 +273,62 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                         binding.overlay.setImageDimensions(bmp.width, bmp.height)
                         binding.loadingProgress.visibility = View.VISIBLE
 
-                        // --- FIXED: Clear previous results immediately ---
+                        // Clear detections
                         clearDetections()
-                        // -----------------------------------------------
 
+                        // Run detection
                         cameraExecutor.execute {
                             detector?.detect(bmp)
                             detectorEyes?.detect(bmp)
                         }
                     }
+
+                    // Show save dialog and CALCULATE SPECIES RATIO
                     binding.saveDialog.visibility = View.VISIBLE
+                    calculateSpeciesDistribution(lastResults)
+
                 } else {
                     restartCameraPreview()
                 }
             }
         }
+    }
+
+    // --- NEW: Calculate and Display Species Distribution ---
+    private fun calculateSpeciesDistribution(boxes: List<BoundingBox>) {
+        if (boxes.isEmpty()) {
+            binding.speciesRatioContainer.visibility = View.GONE
+            binding.tvSpeciesRatioTitle.visibility = View.GONE
+            return
+        }
+
+        binding.speciesRatioContainer.removeAllViews()
+        val totalFish = boxes.size
+        val grouped = boxes.groupBy { it.clsName }
+
+        for ((species, speciesBoxes) in grouped) {
+            val count = speciesBoxes.size
+            val ratio = (count.toFloat() / totalFish) * 100
+            val color = speciesColorMap[species] ?: Color.GRAY
+
+            val view = LayoutInflater.from(requireContext()).inflate(R.layout.item_analytics_species, binding.speciesRatioContainer, false)
+
+            val tvName = view.findViewById<TextView>(R.id.tvSpeciesName)
+            val tvCount = view.findViewById<TextView>(R.id.tvSpeciesCount)
+            val progress = view.findViewById<LinearProgressIndicator>(R.id.speciesProgress)
+
+            tvName.text = species
+            tvCount.text = "$count (${ratio.toInt()}%)"
+
+            progress.progress = ratio.toInt()
+            progress.setIndicatorColor(color)
+            progress.trackColor = Color.parseColor("#EEEEEE") // Light gray track
+
+            binding.speciesRatioContainer.addView(view)
+        }
+
+        binding.tvSpeciesRatioTitle.visibility = View.VISIBLE
+        binding.speciesRatioContainer.visibility = View.VISIBLE
     }
 
     private fun showPausedState() {
@@ -302,14 +376,18 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                 binding.saveDialog.visibility = View.VISIBLE
                 binding.loadingProgress.visibility = View.VISIBLE
 
-                // --- FIXED: Clear previous results immediately ---
                 clearDetections()
-                // -----------------------------------------------
 
                 cameraExecutor.execute {
                     detector?.detect(bitmap)
                     detectorEyes?.detect(bitmap)
                 }
+                // Show ratios for gallery images too (after detection updates lastResults)
+                // Note: onDetect runs asynchronously, so ratios might delay slightly.
+                // To be safe, we can call it in onDetect if !isCameraRunning, but let's leave it here
+                // assuming fast inference or user waits a split second.
+                // Better approach: update in onDetect if detection is finished.
+
             } else {
                 Toast.makeText(context, "Failed to load image", Toast.LENGTH_SHORT).show()
             }
@@ -319,7 +397,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         }
     }
 
-    // Helper to clear everything from UI and State
     private fun clearDetections() {
         lastResults = emptyList()
         lastEyeResults = emptyList()
@@ -328,6 +405,11 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         binding.totalCountLabel.text = getString(R.string.total_detected, 0)
         binding.eyesCountLabel.visibility = View.GONE
         binding.noDetectionText.visibility = View.GONE
+
+        binding.tvFreshnessSummary.visibility = View.GONE
+        binding.freshnessProgress.visibility = View.GONE
+        binding.speciesRatioContainer.visibility = View.GONE
+        binding.tvSpeciesRatioTitle.visibility = View.GONE
     }
 
     private fun restartCameraPreview() {
@@ -338,11 +420,15 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         binding.eyesCountLabel.visibility = View.GONE
         binding.loadingProgress.visibility = View.GONE
 
+        binding.tvFreshnessSummary.visibility = View.GONE
+        binding.freshnessProgress.visibility = View.GONE
+        binding.speciesRatioContainer.visibility = View.GONE
+        binding.tvSpeciesRatioTitle.visibility = View.GONE
+
         binding.fab.setImageResource(R.drawable.ic_camera)
         binding.overlay.setCameraMode()
         binding.overlay.clear()
 
-        // Clear state
         lastResults = emptyList()
         lastEyeResults = emptyList()
         detectionAdapter.updateDetections(emptyList())
@@ -418,7 +504,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         val resultsToSave = lastResults
         val eyesToSave = lastEyeResults
 
-        // Show a loading indicator if you have one, or a toast
         Toast.makeText(context, "Acquiring GPS...", Toast.LENGTH_SHORT).show()
 
         if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
@@ -447,21 +532,16 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                             placeName = getString(R.string.lat_lng_location, currentLat, currentLng)
                         }
                     }
-
-                    // --- PROCEED TO SAVE WITH FRESH LOCATION ---
                     saveDetectionToDb(bitmapToSave, resultsToSave, eyesToSave, currentLat, currentLng, placeName)
                 }
                 .addOnFailureListener {
-                    // Fallback if GPS fails
                     saveDetectionToDb(bitmapToSave, resultsToSave, eyesToSave, 0.0, 0.0, getString(R.string.location_not_available))
                 }
         } else {
-            // Permission not granted, save without location
             saveDetectionToDb(bitmapToSave, resultsToSave, eyesToSave, 0.0, 0.0, getString(R.string.location_not_available))
         }
     }
 
-    // Helper function to handle the actual file/DB saving (Extracted from your original code)
     private fun saveDetectionToDb(bitmapToSave: Bitmap, resultsToSave: List<BoundingBox>, eyesToSave: List<BoundingBox>, lat: Double, lng: Double, placeName: String) {
         try {
             val mutableBitmap = bitmapToSave.copy(Bitmap.Config.ARGB_8888, true)
@@ -472,7 +552,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             val textBgPaint = Paint().apply { color = Color.BLACK; style = Paint.Style.FILL }
 
             resultsToSave.forEachIndexed { index, box ->
-                // Ensure species specific color consistency
                 val color = speciesColorMap.getOrPut(box.clsName) {
                     boxColors[speciesColorMap.size % boxColors.size]
                 }
@@ -572,20 +651,16 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             if (_binding != null) {
                 binding.inferenceTime.text = getString(R.string.inference_time_ms, inferenceTime)
 
-                // 1. Group by Species Name
                 val groupedList = boundingBoxes.groupBy { it.clsName }
 
-                // 2. Prepare Colors for Overlay (Order must match original boundingBoxes to map correctly)
                 val overlayColors = boundingBoxes.map { box ->
                     speciesColorMap.getOrPut(box.clsName) {
                         boxColors[speciesColorMap.size % boxColors.size]
                     }
                 }
 
-                // 3. Update Overlay with boxes and their specific colors
                 binding.overlay.setResults(boundingBoxes, overlayColors)
 
-                // 4. Create Aggregated List for Adapter
                 val detectionItems = groupedList.map { (species, boxes) ->
                     val count = boxes.size
                     val avgConf = boxes.map { it.cnf }.average().toFloat()
@@ -599,7 +674,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                     )
                 }
 
-                // 5. Update UI
                 updateTotalCount()
                 if (detectionItems.isEmpty()) {
                     binding.noDetectionText.visibility = View.VISIBLE
@@ -608,6 +682,11 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                     binding.noDetectionText.visibility = View.GONE
                     binding.detectionList.visibility = View.VISIBLE
                     detectionAdapter.updateDetections(detectionItems)
+                }
+
+                // If camera is paused (captured state), update species ratios
+                if (!isCameraRunning) {
+                    calculateSpeciesDistribution(boundingBoxes)
                 }
             }
         }

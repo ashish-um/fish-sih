@@ -43,10 +43,12 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
 import com.google.android.material.chip.Chip
+import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.surendramaran.yolov8tflite.R
 import com.surendramaran.yolov8tflite.data.Constants.LABELS_PATH
 import com.surendramaran.yolov8tflite.data.Constants.MODEL_PATH
 import com.surendramaran.yolov8tflite.data.DatabaseHelper
+import com.surendramaran.yolov8tflite.data.SpeciesRepository
 import com.surendramaran.yolov8tflite.data.SyncWorker
 import com.surendramaran.yolov8tflite.databinding.FragmentCameraBinding
 import com.surendramaran.yolov8tflite.ml.BoundingBox
@@ -285,9 +287,10 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                         }
                     }
 
-                    // Show save dialog and CALCULATE SPECIES RATIO
+                    // Show save dialog and CALCULATE DISTRIBUTIONS
                     binding.saveDialog.visibility = View.VISIBLE
                     calculateSpeciesDistribution(lastResults)
+                    calculateBiomass(lastResults)
 
                 } else {
                     restartCameraPreview()
@@ -310,7 +313,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
 
         val totalFish = boxes.size
         val grouped = boxes.groupBy { it.clsName }
-        // Sort for consistent display (most frequent first)
         val sortedGrouped = grouped.toList().sortedByDescending { it.second.size }
 
         for ((species, speciesBoxes) in sortedGrouped) {
@@ -320,7 +322,6 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             // 1. Add Segment to Stacked Bar
             val segment = View(requireContext())
             val params = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT)
-            // Use weight to distribute width proportionally
             params.weight = count.toFloat()
             segment.layoutParams = params
             segment.setBackgroundColor(color)
@@ -333,13 +334,105 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
             chip.chipBackgroundColor = ColorStateList.valueOf(color)
             chip.setTextColor(Color.WHITE)
             chip.isClickable = false
-            chip.ensureAccessibleTouchTarget(0) // Minimal touch target not needed for display-only
+            chip.ensureAccessibleTouchTarget(0)
             binding.speciesLegendGroup.addView(chip)
         }
 
         binding.tvSpeciesRatioTitle.visibility = View.VISIBLE
         binding.cardSpeciesBar.visibility = View.VISIBLE
         binding.speciesLegendGroup.visibility = View.VISIBLE
+    }
+
+    // Data class to hold species biomass stats
+    private data class SpeciesBiomass(
+        val name: String,
+        val totalWeight: Double,
+        val totalVolume: Double,
+        val color: Int
+    )
+
+    // --- Calculate and Display Biomass (Vertical List Graphic) ---
+    private fun calculateBiomass(boxes: List<BoundingBox>) {
+        if (boxes.isEmpty()) {
+            binding.tvBiomassTitle.visibility = View.GONE
+            binding.biomassListContainer.visibility = View.GONE
+            return
+        }
+
+        binding.biomassListContainer.removeAllViews()
+
+        val grouped = boxes.groupBy { it.clsName }
+        var grandTotalWeight = 0.0
+        var grandTotalVolume = 0.0
+        val speciesStats = mutableListOf<SpeciesBiomass>()
+
+        // 1. Calculate totals
+        for ((species, speciesBoxes) in grouped) {
+            val count = speciesBoxes.size
+            val info = SpeciesRepository.getSpeciesInfo(species)
+
+            // Calculate total for this species
+            val totalSpeciesWeight = count * info.avgWeight // Grams
+            val totalSpeciesVolume = count * info.avgVolume // cm3 (mL)
+            val color = speciesColorMap[species] ?: Color.GRAY
+
+            grandTotalWeight += totalSpeciesWeight
+            grandTotalVolume += totalSpeciesVolume
+
+            speciesStats.add(SpeciesBiomass(species, totalSpeciesWeight, totalSpeciesVolume, color))
+        }
+
+        // 2. Sort by weight
+        val sortedStats = speciesStats.sortedByDescending { it.totalWeight }
+
+        // 3. Update Title with Grand Totals (Converted to kg and Liters)
+        val totalKg = grandTotalWeight / 1000.0
+        val totalLiters = grandTotalVolume / 1000.0
+        binding.tvBiomassTitle.text = "Est. Biomass (Total: ${String.format("%.2f", totalKg)} kg | ${String.format("%.2f", totalLiters)} L)"
+
+        // 4. Build List Items
+        for (stat in sortedStats) {
+            // Create Row Layout Programmatically
+            val rowLayout = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                    bottomMargin = (12 * resources.displayMetrics.density).toInt()
+                }
+            }
+
+            // Text: Species Name, Weight & Volume
+            val weightKg = stat.totalWeight / 1000.0
+            val volumeL = stat.totalVolume / 1000.0
+
+            val infoText = TextView(requireContext()).apply {
+                text = "${stat.name}: ${String.format("%.1f", weightKg)} kg  |  ${String.format("%.1f", volumeL)} L"
+                textSize = 14f
+                setTextColor(Color.parseColor("#424242"))
+                setTypeface(null, android.graphics.Typeface.BOLD)
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                    bottomMargin = (4 * resources.displayMetrics.density).toInt()
+                }
+            }
+
+            // Progress Bar: Visual representation of weight contribution
+            val progressIndicator = LinearProgressIndicator(requireContext()).apply {
+                trackCornerRadius = (4 * resources.displayMetrics.density).toInt()
+                trackColor = Color.parseColor("#EEEEEE")
+                setIndicatorColor(stat.color)
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, (8 * resources.displayMetrics.density).toInt())
+
+                // Calculate progress relative to total weight
+                val progressVal = if(grandTotalWeight > 0) ((stat.totalWeight / grandTotalWeight) * 100).toInt() else 0
+                progress = progressVal
+            }
+
+            rowLayout.addView(infoText)
+            rowLayout.addView(progressIndicator)
+            binding.biomassListContainer.addView(rowLayout)
+        }
+
+        binding.tvBiomassTitle.visibility = View.VISIBLE
+        binding.biomassListContainer.visibility = View.VISIBLE
     }
 
     private fun showPausedState() {
@@ -417,6 +510,9 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         binding.tvSpeciesRatioTitle.visibility = View.GONE
         binding.cardSpeciesBar.visibility = View.GONE
         binding.speciesLegendGroup.visibility = View.GONE
+
+        binding.tvBiomassTitle.visibility = View.GONE
+        binding.biomassListContainer.visibility = View.GONE
     }
 
     private fun restartCameraPreview() {
@@ -432,6 +528,9 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
         binding.tvSpeciesRatioTitle.visibility = View.GONE
         binding.cardSpeciesBar.visibility = View.GONE
         binding.speciesLegendGroup.visibility = View.GONE
+
+        binding.tvBiomassTitle.visibility = View.GONE
+        binding.biomassListContainer.visibility = View.GONE
 
         binding.fab.setImageResource(R.drawable.ic_camera)
         binding.overlay.setCameraMode()
@@ -695,6 +794,7 @@ class CameraFragment : Fragment(), Detector.DetectorListener {
                 // If camera is paused (captured state), update species ratios
                 if (!isCameraRunning) {
                     calculateSpeciesDistribution(boundingBoxes)
+                    calculateBiomass(boundingBoxes)
                 }
             }
         }

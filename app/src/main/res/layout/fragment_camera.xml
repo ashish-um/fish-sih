@@ -240,7 +240,7 @@
                         android:id="@+id/speciesStackedBar"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:orientation="horizontal"/>
+                        android:orientation="horizontal" />
                 </com.google.android.material.card.MaterialCardView>
 
                 <com.google.android.material.chip.ChipGroup
@@ -250,6 +250,29 @@
                     android:paddingHorizontal="24dp"
                     android:layout_marginBottom="24dp"
                     app:chipSpacing="8dp"
+                    android:visibility="gone"/>
+
+                <TextView
+                    android:id="@+id/tvBiomassTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginHorizontal="24dp"
+                    android:layout_marginBottom="12dp"
+                    android:text="Estimated Biomass"
+                    android:textAllCaps="true"
+                    android:letterSpacing="0.1"
+                    android:textColor="#757575"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:visibility="gone"/>
+
+                <LinearLayout
+                    android:id="@+id/biomassListContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="24dp"
+                    android:layout_marginBottom="24dp"
                     android:visibility="gone"/>
 
                 <LinearLayout

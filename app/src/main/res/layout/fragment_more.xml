@@ -190,7 +190,6 @@
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/btn_chat"
                 android:layout_width="0dp"
-                android:visibility="invisible"
                 android:layout_height="wrap_content"
                 android:layout_columnWeight="1"
                 android:layout_gravity="fill"
@@ -234,7 +233,6 @@
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/btn_language"
                 android:layout_width="0dp"
-                android:visibility="invisible"
                 android:layout_height="wrap_content"
                 android:layout_columnWeight="1"
                 android:layout_gravity="fill"
@@ -278,7 +276,6 @@
 
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/btn_analytics"
-                android:visibility="invisible"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_columnWeight="1"

@@ -28,15 +28,18 @@ class MoreFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // --- NEW: Profile Button logic ---
-        // (Ensure you add a button with ID btnProfile to fragment_more.xml)
         binding.btnProfile.setOnClickListener {
             findNavController().navigate(R.id.profileFragment)
         }
         binding.root.findViewById<View>(R.id.btn_analytics)?.setOnClickListener {
             findNavController().navigate(R.id.analyticsFragment)
         }
-        binding.btnHistory.setOnClickListener { findNavController().navigate(R.id.historyFragment) }
+
+        // Updated: History moved to bottom nav, Freshness moved here
+        binding.btnFreshness.setOnClickListener {
+            findNavController().navigate(R.id.freshnessFragment)
+        }
+
         binding.btnMap.setOnClickListener { findNavController().navigate(R.id.mapFragment) }
         binding.btnChat.setOnClickListener { findNavController().navigate(R.id.chatFragment) }
         binding.btnLanguage.setOnClickListener { showLanguageDialog() }

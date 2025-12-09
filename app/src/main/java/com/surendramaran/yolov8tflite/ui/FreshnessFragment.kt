@@ -11,7 +11,6 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.location.Geocoder
 import android.location.Location
-import android.location.LocationManager
 import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -54,19 +53,14 @@ class FreshnessFragment : Fragment() {
     private var _binding: FragmentFreshnessBinding? = null
     private val binding get() = _binding!!
     private var detectorEyes: Detector? = null
-    private var detectorGills: Detector? = null
     private lateinit var dbHelper: DatabaseHelper
     private lateinit var cameraExecutor: ExecutorService
 
-    private var isTargetingEyes = true
     private var tempImageUri: Uri? = null
 
     private var lastBitmapEyes: Bitmap? = null
-    private var lastBitmapGills: Bitmap? = null
     private var lastEyesBoxes: List<BoundingBox> = emptyList()
-    private var lastGillsBoxes: List<BoundingBox> = emptyList()
     private var eyesScore: Float? = null
-    private var gillsScore: Float? = null
 
     // Captured location store
     private var capturedLocation: Location? = null
@@ -116,26 +110,13 @@ class FreshnessFragment : Fragment() {
                 detectorEyes = Detector(safeContext, "eyes_model.tflite", "eyes_labels.txt", object : Detector.DetectorListener {
                     override fun onEmptyDetect() {
                         lastEyesBoxes = emptyList()
-                        updateOverlay(true, emptyList())
+                        updateOverlay(emptyList())
                     }
                     override fun onDetect(boundingBoxes: List<BoundingBox>, inferenceTime: Long) {
                         val bestBox = boundingBoxes.maxByOrNull { it.cnf }
                         val filteredList = if (bestBox != null) listOf(bestBox) else emptyList()
                         lastEyesBoxes = filteredList
-                        updateOverlay(true, filteredList)
-                    }
-                })
-
-                detectorGills = Detector(safeContext, "gills_model.tflite", "gills_labels.txt", object : Detector.DetectorListener {
-                    override fun onEmptyDetect() {
-                        lastGillsBoxes = emptyList()
-                        updateOverlay(false, emptyList())
-                    }
-                    override fun onDetect(boundingBoxes: List<BoundingBox>, inferenceTime: Long) {
-                        val bestBox = boundingBoxes.maxByOrNull { it.cnf }
-                        val filteredList = if (bestBox != null) listOf(bestBox) else emptyList()
-                        lastGillsBoxes = filteredList
-                        updateOverlay(false, filteredList)
+                        updateOverlay(filteredList)
                     }
                 })
             }
@@ -149,31 +130,13 @@ class FreshnessFragment : Fragment() {
                 .load(R.drawable.eyes_instruction)
                 .into(binding.gifInstructionsEyes)
         }
-
-        if (lastBitmapGills == null) {
-            Glide.with(this)
-                .asGif()
-                .load(R.drawable.gills_instruction)
-                .into(binding.gifInstructionsGills)
-        }
     }
 
     private fun setupButtons() {
         binding.btnCameraEyes.setOnClickListener {
-            isTargetingEyes = true
             checkPermissionAndLaunchCamera()
         }
         binding.btnGalleryEyes.setOnClickListener {
-            isTargetingEyes = true
-            galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-        }
-
-        binding.btnCameraGills.setOnClickListener {
-            isTargetingEyes = false
-            checkPermissionAndLaunchCamera()
-        }
-        binding.btnGalleryGills.setOnClickListener {
-            isTargetingEyes = false
             galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
         }
 
@@ -216,7 +179,7 @@ class FreshnessFragment : Fragment() {
         val destFile = File(requireContext().cacheDir, destFileName)
         val options = UCrop.Options().apply {
             setCompressionQuality(90)
-            setToolbarTitle(if (isTargetingEyes) getString(R.string.crop_eyes) else getString(R.string.crop_gills))
+            setToolbarTitle(getString(R.string.crop_eyes))
             setFreeStyleCropEnabled(true)
         }
         cropImage.launch(UCrop.of(sourceUri, Uri.fromFile(destFile)).withOptions(options).getIntent(requireContext()))
@@ -229,29 +192,16 @@ class FreshnessFragment : Fragment() {
             bitmap = Utils.rotateImageIfRequired(requireContext(), bitmap, uri)
             bitmap = Utils.resizeBitmap(bitmap, 640)
 
-            if (isTargetingEyes) {
-                if (detectorEyes == null) return
-                lastBitmapEyes = bitmap
-                binding.imgEyes.setImageBitmap(bitmap)
-                binding.imgEyes.visibility = View.VISIBLE
-                binding.gifInstructionsEyes.visibility = View.GONE
+            if (detectorEyes == null) return
+            lastBitmapEyes = bitmap
+            binding.imgEyes.setImageBitmap(bitmap)
+            binding.imgEyes.visibility = View.VISIBLE
+            binding.gifInstructionsEyes.visibility = View.GONE
 
-                binding.overlayEyes.clear()
-                binding.overlayEyes.setImageDimensions(bitmap.width, bitmap.height)
-                binding.pbEyesLoading.visibility = View.VISIBLE
-                cameraExecutor.execute { detectorEyes?.detect(bitmap) }
-            } else {
-                if (detectorGills == null) return
-                lastBitmapGills = bitmap
-                binding.imgGills.setImageBitmap(bitmap)
-                binding.imgGills.visibility = View.VISIBLE
-                binding.gifInstructionsGills.visibility = View.GONE
-
-                binding.overlayGills.clear()
-                binding.overlayGills.setImageDimensions(bitmap.width, bitmap.height)
-                binding.pbGillsLoading.visibility = View.VISIBLE
-                cameraExecutor.execute { detectorGills?.detect(bitmap) }
-            }
+            binding.overlayEyes.clear()
+            binding.overlayEyes.setImageDimensions(bitmap.width, bitmap.height)
+            binding.pbEyesLoading.visibility = View.VISIBLE
+            cameraExecutor.execute { detectorEyes?.detect(bitmap) }
 
             // Start Pre-fetch
             capturedLocation = null
@@ -279,23 +229,19 @@ class FreshnessFragment : Fragment() {
         }
     }
 
-    private fun updateOverlay(isEyes: Boolean, boxes: List<BoundingBox>) {
+    private fun updateOverlay(boxes: List<BoundingBox>) {
         activity?.runOnUiThread {
             if (_binding == null) return@runOnUiThread
 
-            val overlay = if (isEyes) binding.overlayEyes else binding.overlayGills
-            val txtResult = if (isEyes) binding.txtResultEyes else binding.txtResultGills
-            val progressBar = if (isEyes) binding.pbEyesLoading else binding.pbGillsLoading
+            val overlay = binding.overlayEyes
+            val txtResult = binding.txtResultEyes
+            val progressBar = binding.pbEyesLoading
             progressBar.visibility = View.GONE
 
             val bestBox = boxes.maxByOrNull { it.cnf }
             val singleBoxList = if (bestBox != null) listOf(bestBox) else emptyList()
 
-            if (isEyes) {
-                overlay.setEyeResults(singleBoxList)
-            } else {
-                overlay.setResults(singleBoxList)
-            }
+            overlay.setEyeResults(singleBoxList)
             overlay.invalidate()
 
             if (bestBox != null) {
@@ -314,7 +260,7 @@ class FreshnessFragment : Fragment() {
                     txtResult.background.setTint(Color.parseColor("#FFEBEE"))
                 }
 
-                if (isEyes) eyesScore = score else gillsScore = score
+                eyesScore = score
                 calculateFinalVerdict()
             } else {
                 txtResult.text = getString(R.string.no_detection)
@@ -326,14 +272,13 @@ class FreshnessFragment : Fragment() {
 
     private fun calculateFinalVerdict() {
         val eScore = eyesScore
-        val gScore = gillsScore
 
-        if (eScore != null && gScore != null) {
+        if (eScore != null) {
             binding.cardFinalVerdict.visibility = View.VISIBLE
-            val weightedAvg = (gScore * 0.6f) + (eScore * 0.4f)
-            val percent = (weightedAvg * 100).toInt()
+            // Use Eye Score directly for final verdict
+            val percent = (eScore * 100).toInt()
 
-            if (weightedAvg > 0.5) {
+            if (eScore > 0.5) {
                 binding.txtFinalResult.text = getString(R.string.fresh_percentage, percent)
                 binding.txtFinalResult.setTextColor(Color.parseColor("#2E7D32"))
             } else {
@@ -355,15 +300,9 @@ class FreshnessFragment : Fragment() {
             bitmapsWithBoxes.add(drawnBmp)
             val score = eyesScore
             val status = if (score != null) { if (score > 0.5) "Fresh" else "Not Fresh" } else "Not Analyzed"
-            descriptions.add("Part: EYES\nStatus: $status")
-        }
-
-        lastBitmapGills?.let { bmp ->
-            val drawnBmp = drawBoundingBoxes(appContext, bmp, lastGillsBoxes)
-            bitmapsWithBoxes.add(drawnBmp)
-            val score = gillsScore
-            val status = if (score != null) { if (score > 0.5) "Fresh" else "Not Fresh" } else "Not Analyzed"
-            descriptions.add("Part: GILLS\nStatus: $status")
+            // ADDED: Include Confidence Percentage in details
+            val conf = if (score != null) (score * 100).toInt() else 0
+            descriptions.add("Part: EYES\nStatus: $status\nConfidence: $conf%")
         }
 
         if (bitmapsWithBoxes.isEmpty()) return
@@ -379,7 +318,11 @@ class FreshnessFragment : Fragment() {
                 paths.add(file.absolutePath)
             }
             val combinedPaths = paths.joinToString("|")
-            val combinedDetails = descriptions.joinToString(";;;")
+
+            // ADDED: Append Freshness summary for History Graph parsing
+            val finalPercent = if(eyesScore != null) (eyesScore!! * 100).toInt() else 0
+            val combinedDetails = descriptions.joinToString(";;;") + ";;;Freshness: ${finalPercent}%"
+
             val title = binding.txtFinalResult.text.toString()
 
             // Check pre-fetched
@@ -394,13 +337,9 @@ class FreshnessFragment : Fragment() {
                 val fusedLocationClient = LocationServices.getFusedLocationProviderClient(appContext)
                 val cancellationTokenSource = CancellationTokenSource()
 
-                // ... inside saveFreshnessLog ...
-                // ... inside saveVolumeLog ...
-                // ... inside saveFreshnessLog ...
                 fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.token)
                     .addOnSuccessListener { location ->
                         if (location != null) {
-                            // FIX: Use appContext.getString
                             var placeName = appContext.getString(R.string.location_not_available)
                             try {
                                 val geocoder = Geocoder(appContext, Locale.getDefault())
@@ -416,12 +355,10 @@ class FreshnessFragment : Fragment() {
                             }
                             performInsert(appContext, combinedPaths, title, combinedDetails, location.latitude, location.longitude, placeName)
                         } else {
-                            // FIX: Use appContext.getString
                             performInsert(appContext, combinedPaths, title, combinedDetails, 0.0, 0.0, appContext.getString(R.string.location_not_available))
                         }
                     }
                     .addOnFailureListener {
-                        // FIX: Use appContext.getString
                         performInsert(appContext, combinedPaths, title, combinedDetails, 0.0, 0.0, appContext.getString(R.string.location_not_available))
                     }
             } else {
@@ -467,8 +404,6 @@ class FreshnessFragment : Fragment() {
             cameraExecutor.execute {
                 detectorEyes?.close()
                 detectorEyes = null
-                detectorGills?.close()
-                detectorGills = null
             }
             cameraExecutor.shutdown()
         }

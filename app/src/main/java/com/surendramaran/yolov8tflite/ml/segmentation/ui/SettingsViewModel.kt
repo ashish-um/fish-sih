@@ -7,4 +7,5 @@ class SettingsViewModel : ViewModel() {
     var isSmoothEdges = false
     var isMaskOutChecked = false
     var useCoinReference = true
+    var isPilesMode = false
 }

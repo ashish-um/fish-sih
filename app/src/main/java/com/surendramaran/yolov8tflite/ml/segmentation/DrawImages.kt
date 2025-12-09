@@ -55,6 +55,7 @@ class DrawImages(private val context: Context) {
                     val overlay = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
                     val sb = StringBuilder()
 
+                    // Draw Coin if available
                     if (theCoin != null) {
                         val coinDesc = applyTransparentOverlay(
                             context, overlay, theCoin,
@@ -66,6 +67,7 @@ class DrawImages(private val context: Context) {
                         sb.append(context.getString(R.string.reference_coin_description, coinDesc))
                     }
 
+                    // Draw Fish/Pile
                     val fishDesc = applyTransparentOverlay(
                         context, overlay, fishResult,
                         colorPairs[fishResult.box.cls] ?: R.color.primary,
@@ -73,54 +75,34 @@ class DrawImages(private val context: Context) {
                         pixelsPerCm,
                         isCoin = false
                     )
-                    sb.append(context.getString(R.string.fish_description, index + 1, fishDesc))
+
+                    // Customize text based on type (detected inside applyTransparentOverlay but returned as string)
+                    sb.append(fishDesc) // simplified append
 
                     outputList.add(AnalysisResult(original, overlay, sb.toString()))
                 }
             } else if (theCoin != null) {
+                // ... Reference only case (same as before) ...
                 val overlay = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                val coinDesc = applyTransparentOverlay(
-                    context, overlay, theCoin,
-                    R.color.white,
-                    emptyList(),
-                    pixelsPerCm,
-                    isCoin = true
-                )
+                val coinDesc = applyTransparentOverlay(context, overlay, theCoin, R.color.white, emptyList(), pixelsPerCm, true)
                 outputList.add(AnalysisResult(original, overlay, context.getString(R.string.reference_only_description, coinDesc)))
             }
-
             return outputList
         } else {
+            // ... Combined logic (same pattern) ...
             if (success.results.isEmpty() && coinResults.isEmpty()) return emptyList()
-
             val combined = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
             val sb = StringBuilder()
-
             coinResults.forEach { result ->
-                val desc = applyTransparentOverlay(
-                    context, combined, result,
-                    R.color.white,
-                    emptyList(),
-                    pixelsPerCm,
-                    isCoin = true
-                )
+                val desc = applyTransparentOverlay(context, combined, result, R.color.white, emptyList(), pixelsPerCm, true)
                 sb.append(context.getString(R.string.reference_description, desc))
             }
-
             val colorPairs: MutableMap<Int, Int> = mutableMapOf()
             success.results.forEach { colorPairs[it.box.cls] = getNextColor() }
-
             success.results.forEachIndexed { index, result ->
-                val desc = applyTransparentOverlay(
-                    context, combined, result,
-                    colorPairs[result.box.cls] ?: R.color.primary,
-                    speciesBoxes,
-                    pixelsPerCm,
-                    isCoin = false
-                )
-                sb.append(context.getString(R.string.fish_description, index + 1, desc))
+                val desc = applyTransparentOverlay(context, combined, result, colorPairs[result.box.cls] ?: R.color.primary, speciesBoxes, pixelsPerCm, false)
+                sb.append("Item ${index + 1}: $desc\n")
             }
-
             return listOf(AnalysisResult(original, combined, sb.toString()))
         }
     }
@@ -138,7 +120,7 @@ class DrawImages(private val context: Context) {
         val height = overlay.height
         val overlayColor = ContextCompat.getColor(context, overlayColorResId)
 
-        // Draw Mask Pixels
+        // Draw Mask
         for (y in 0 until height) {
             for (x in 0 until width) {
                 if (segmentationResult.mask[y][x] > 0) {
@@ -162,95 +144,86 @@ class DrawImages(private val context: Context) {
         }
 
         val box = segmentationResult.box
-        var displayText = ""
-        var detailedInfo = ""
         var labelX = box.x1 * width
         var labelY = box.y1 * height - 10
+        var detailedInfo = ""
+        var displayText = ""
 
         if (isCoin) {
-            // Draw Standard Bounding Box for Coin
-            val left = box.x1 * width
-            val top = box.y1 * height
-            val right = box.x2 * width
-            val bottom = box.y2 * height
+            val left = box.x1 * width; val top = box.y1 * height; val right = box.x2 * width; val bottom = box.y2 * height
             canvas.drawRect(left, top, right, bottom, boxPaint)
-
-            val wPx = right - left
-            val hPx = bottom - top
-            val diameterPx = max(wPx, hPx)
+            val diameterPx = max(right - left, bottom - top)
             val diameterCm = (diameterPx / pixelsPerCm).toDouble()
-
-            displayText = context.getString(R.string.coin_display_text, f(diameterCm))
-            detailedInfo = context.getString(R.string.coin_detailed_info, f(diameterCm), f(diameterCm), f(diameterPx.toDouble()/2.7))
+            displayText = "Coin: ${f(diameterCm)}cm"
+            detailedInfo = "Coin Dia: ${f(diameterCm)}cm"
         } else {
-            // --- FISH LOGIC: Use Aligned Box ---
-            var bestName = context.getString(R.string.unknown)
-            if (speciesBoxes.isNotEmpty()) {
-                val maskRect = RectF(box.x1, box.y1, box.x2, box.y2)
-                var maxIoU = 0.0f
-                for (sBox in speciesBoxes) {
-                    val sRect = RectF(sBox.x1, sBox.y1, sBox.x2, sBox.y2)
-                    val iou = calculateIoU(maskRect, sRect)
-                    if (iou > maxIoU && iou > 0.1) {
-                        maxIoU = iou
-                        bestName = sBox.clsName
-                    }
-                }
-            } else {
-                bestName = box.clsName
-            }
+            // Determine name
+            var bestName = box.clsName
+            // If Pile model is used, clsName will be "Pile"
 
-            val bio = SpeciesRepository.getSpeciesInfo(bestName)
-
-            // Calculate Volume & Get Aligned Corners
+            // Get Dimensions using VolumeCalculator (OpenCV minAreaRect)
             val measurements = VolumeCalculator.calculateVolume(
                 mask = segmentationResult.mask,
-                speciesRatio = bio.ratio,
+                speciesRatio = 0.5, // Default ratio, ignored for Cone calculation
                 pixelsPerCm = pixelsPerCm
             )
 
-            // Draw Aligned Box if corners exist
+            // Draw Aligned Box
             if (measurements.corners != null && measurements.corners.size == 4) {
                 val path = Path()
                 path.moveTo(measurements.corners[0].x, measurements.corners[0].y)
-                path.lineTo(measurements.corners[1].x, measurements.corners[1].y)
-                path.lineTo(measurements.corners[2].x, measurements.corners[2].y)
-                path.lineTo(measurements.corners[3].x, measurements.corners[3].y)
+                for (i in 1..3) path.lineTo(measurements.corners[i].x, measurements.corners[i].y)
                 path.close()
                 canvas.drawPath(path, boxPaint)
-
-                // Update Label Position to the highest point of the aligned box
                 val topCorner = measurements.corners.minByOrNull { it.y }
-                if (topCorner != null) {
-                    labelX = topCorner.x
-                    labelY = topCorner.y - 10
-                }
+                if (topCorner != null) { labelX = topCorner.x; labelY = topCorner.y - 10 }
             } else {
-                // Fallback to standard box if calculation fails
-                val left = box.x1 * width
-                val top = box.y1 * height
-                val right = box.x2 * width
-                val bottom = box.y2 * height
-                canvas.drawRect(left, top, right, bottom, boxPaint)
+                canvas.drawRect(box.x1 * width, box.y1 * height, box.x2 * width, box.y2 * height, boxPaint)
             }
 
-            val weightG = bio.a * measurements.lengthCm.pow(bio.b)
+            if (bestName.equals("Pile", ignoreCase = true)) {
+                // --- PILE LOGIC: CONE FORMULA ---
+                // Volume = (1/3) * pi * r^2 * h
+                // width/depth corresponds to diameter (2r)
+                // length corresponds to height (h)
+                // (Assuming the pile is viewed somewhat from side or mapping bounding box dims directly)
 
-            displayText = context.getString(R.string.fish_display_text, bestName, f0(weightG))
-            detailedInfo = context.getString(
-                R.string.fish_detailed_info,
-                bestName,
-                f(measurements.lengthCm),
-                f(measurements.depthCm),
-                bio.a, bio.b,
-                f0(weightG),
-                f0(measurements.volumeCm3)
-            )
+                val diameter = measurements.depthCm
+                val heightCm = measurements.lengthCm
+                val radius = diameter / 2.0
+
+                val coneVolume = (1.0 / 3.0) * Math.PI * radius.pow(2) * heightCm
+
+                // Estimation: 1 cm3 ~ 1 gram (roughly for fish/water)
+                val estWeightKg = coneVolume / 1000.0
+
+                displayText = "Pile: ${f0(coneVolume)} cm³"
+                detailedInfo = "Pile Volume: ${f0(coneVolume)} cm³\nEst. Weight: ${f(estWeightKg)} kg\nBase Dia: ${f(diameter)}cm, H: ${f(heightCm)}cm"
+
+            } else {
+                // --- EXISTING FISH LOGIC ---
+                // Check species from detector if available
+                if (speciesBoxes.isNotEmpty()) {
+                    val maskRect = RectF(box.x1, box.y1, box.x2, box.y2)
+                    var maxIoU = 0.0f
+                    for (sBox in speciesBoxes) {
+                        val sRect = RectF(sBox.x1, sBox.y1, sBox.x2, sBox.y2)
+                        val iou = calculateIoU(maskRect, sRect)
+                        if (iou > maxIoU && iou > 0.1) { maxIoU = iou; bestName = sBox.clsName }
+                    }
+                }
+                val bio = SpeciesRepository.getSpeciesInfo(bestName)
+                // Recalculate with correct ratio
+                val accurateMeas = VolumeCalculator.calculateVolume(segmentationResult.mask, bio.ratio, pixelsPerCm)
+                val weightG = bio.a * accurateMeas.lengthCm.pow(bio.b)
+
+                displayText = "$bestName | ${f0(weightG)}g"
+                detailedInfo = "Species: $bestName\nEst. Weight: ${f0(weightG)}g\nVol: ${f0(accurateMeas.volumeCm3)}cm³"
+            }
         }
 
         if (labelY < 30) labelY = 40f
         canvas.drawText(displayText, labelX, labelY, textPaint)
-
         return detailedInfo
     }
 
